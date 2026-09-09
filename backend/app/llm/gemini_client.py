@@ -6,7 +6,10 @@ from pydantic import BaseModel
 
 from app.config import get_settings
 
-MODEL = "gemini-2.0-flash"
+# gemini-2.0-flash (the plan's original pick) and its stable successor gemini-2.5-flash have
+# both since been retired for new users. gemini-3.6-flash is what Google's own API currently
+# points new callers to. Revisit if a newer stable flash model ships.
+MODEL = "gemini-3.6-flash"
 
 
 @lru_cache
