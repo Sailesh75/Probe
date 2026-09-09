@@ -31,16 +31,26 @@ def start_session(user_id: UUID, role: str, jd_text: str, resume_text: str) -> t
     return session_row, question_row
 
 
-def submit_answer(question_id: UUID, answer_text: str) -> EvaluationResult:
+def submit_answer(
+    question_id: UUID, answer_text: str, user_id: UUID, session_id: UUID
+) -> EvaluationResult:
     """evaluate_answer -> store the answer with its score/feedback.
 
     Returns the EvaluationResult so callers (tests, demo scripts) can inspect it —
     but the API router must NOT forward score/feedback/needs_followup to the client.
     That's the "no live grading" contract from the plan, enforced at the API boundary.
+
+    Also confirms the question actually belongs to `session_id`, and that session
+    actually belongs to `user_id` — otherwise anyone holding a question_id could answer
+    into someone else's session (or the wrong session in their own URL).
     """
     question_row = repo.get_question(question_id)
-    if question_row is None:
-        raise ValueError(f"No question found with id {question_id}")
+    if question_row is None or question_row["session_id"] != str(session_id):
+        raise ValueError(f"No question {question_id} found in session {session_id}")
+
+    session_row = repo.get_session(session_id)
+    if session_row is None or session_row["user_id"] != str(user_id):
+        raise PermissionError("This session does not belong to the current user")
 
     eval_result = evaluate_answer(
         question_text=question_row["question_text"],
