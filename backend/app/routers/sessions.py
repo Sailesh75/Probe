@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -5,6 +6,8 @@ from pydantic import BaseModel
 
 from app import pipeline
 from app.auth import get_current_user_id
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -31,6 +34,12 @@ class SubmitAnswerResponse(BaseModel):
     has_next: bool
 
 
+class NextQuestionResponse(BaseModel):
+    question_id: UUID
+    question_text: str
+    is_followup: bool
+
+
 @router.post("", response_model=CreateSessionResponse)
 def create_session(
     body: CreateSessionRequest, user_id: UUID = Depends(get_current_user_id)
@@ -49,6 +58,7 @@ def create_session(
             resume_text=body.resume_text,
         )
     except Exception as exc:  # LLM or DB failure
+        logger.exception("create_session failed for user %s", user_id)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return CreateSessionResponse(
@@ -62,12 +72,16 @@ def create_session(
 def submit_answer(
     session_id: UUID, body: SubmitAnswerRequest, user_id: UUID = Depends(get_current_user_id)
 ) -> SubmitAnswerResponse:
-    """Evaluates and stores the answer. Deliberately returns only {recorded, has_next} —
-    never the score/feedback the evaluator just produced. Phase 1 is single-question,
-    so has_next is always False; Phase 3 wires this up to the follow-up/next-question routing.
+    """Evaluates and stores the answer, then runs route_after_eval — the genuine branching
+    decision (follow up / next question / end) — and stores the next question if there is one.
+
+    Deliberately returns only {recorded, has_next} — never the score/feedback the evaluator
+    just produced, and never the next question's text either (fetch that via
+    GET /{session_id}/next-question). That's the "no live grading" contract from the plan,
+    enforced at the API boundary.
     """
     try:
-        pipeline.submit_answer(
+        result = pipeline.submit_answer(
             question_id=body.question_id,
             answer_text=body.answer_text,
             user_id=user_id,
@@ -78,6 +92,29 @@ def submit_answer(
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except Exception as exc:  # LLM or DB failure
+        logger.exception("submit_answer failed for session %s", session_id)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    return SubmitAnswerResponse(recorded=True, has_next=False)
+    return SubmitAnswerResponse(recorded=True, has_next=result["has_next"])
+
+
+@router.get("/{session_id}/next-question", response_model=NextQuestionResponse)
+def next_question(
+    session_id: UUID, user_id: UUID = Depends(get_current_user_id)
+) -> NextQuestionResponse:
+    """The current pending (unanswered) question for this session. Also what lets the
+    frontend resume a session after a page refresh — the pending question lives in Supabase,
+    not in frontend router state.
+    """
+    try:
+        question_row = pipeline.get_next_question(session_id=session_id, user_id=user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    return NextQuestionResponse(
+        question_id=question_row["id"],
+        question_text=question_row["question_text"],
+        is_followup=question_row["is_followup"],
+    )
