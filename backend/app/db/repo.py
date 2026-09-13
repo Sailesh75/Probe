@@ -1,8 +1,9 @@
-"""Persistence layer for Phase 1: sessions, questions, answers.
+"""Persistence layer: sessions, questions, answers.
 
-Kept as plain functions over the Supabase table API (no ORM) since Phase 1 doesn't
-need anything fancier yet. The backend uses the service_role key, so it bypasses the
-RLS policy in db/schema.sql and is responsible for scoping by user_id itself.
+Kept as plain functions over the Supabase table API (no ORM) — Phase 1 didn't need
+anything fancier, and Phase 3 just adds follow-up chains within the same schema. The
+backend uses the service_role key, so it bypasses the RLS policy in db/schema.sql and
+is responsible for scoping by user_id itself.
 """
 
 from typing import Any
@@ -35,13 +36,19 @@ def get_session(session_id: UUID) -> dict[str, Any] | None:
 
 
 def create_question(
-    session_id: UUID, question_text: str, target_area: str, order_index: int
+    session_id: UUID,
+    question_text: str,
+    target_area: str,
+    order_index: int,
+    is_followup: bool = False,
+    parent_question_id: UUID | None = None,
 ) -> dict[str, Any]:
     row = {
         "session_id": str(session_id),
         "question_text": question_text,
         "target_area": target_area,
-        "is_followup": False,
+        "is_followup": is_followup,
+        "parent_question_id": str(parent_question_id) if parent_question_id else None,
         "order_index": order_index,
     }
     result = get_supabase().table("questions").insert(row).execute()
@@ -51,6 +58,18 @@ def create_question(
 def get_question(question_id: UUID) -> dict[str, Any] | None:
     result = get_supabase().table("questions").select("*").eq("id", str(question_id)).execute()
     return result.data[0] if result.data else None
+
+
+def get_questions_for_session(session_id: UUID) -> list[dict[str, Any]]:
+    result = (
+        get_supabase()
+        .table("questions")
+        .select("*")
+        .eq("session_id", str(session_id))
+        .order("order_index")
+        .execute()
+    )
+    return result.data
 
 
 def create_answer(
@@ -65,3 +84,10 @@ def create_answer(
     }
     result = get_supabase().table("answers").insert(row).execute()
     return result.data[0]
+
+
+def get_answer_for_question(question_id: UUID) -> dict[str, Any] | None:
+    result = (
+        get_supabase().table("answers").select("*").eq("question_id", str(question_id)).execute()
+    )
+    return result.data[0] if result.data else None
