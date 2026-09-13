@@ -2,21 +2,34 @@
 
 Multi-agent interview simulator: paste a job description + resume, get asked role-specific
 questions, get scored internally (no live grading), and see the full breakdown at the end.
+Full design in [interview-prep-simulator-plan.md](interview-prep-simulator-plan.md).
+
+**Status: Phase 3 — agentic pipeline.** A LangGraph graph (`backend/app/graph/`) now runs
+`analyze_profile` → `generate_question` ⇄ `evaluate_answer` → `route_after_eval`, with real
+follow-up branching (capped per question) and a multi-question session (capped per session).
+Frontend (React) and auth (Supabase) landed in Phase 2. See the plan's Build Roadmap for
+what's next (Phase 4: summarizer + results screen + score trends).
 
 ## Setup
 
 ### 1. Supabase project
 
-1. Create a project at https://supabase.com/dashboard.
+1. Create a project at https://supabase.com/dashboard (free tier caps active projects per
+   *owner*, not per org — if you hit that limit, pause/delete an old project or use a
+   different account).
 2. In the SQL Editor, run [backend/db/schema.sql](backend/db/schema.sql).
-3. Under Project Settings → API, copy the **Project URL** and the **service_role** key
-   (not `anon` — the backend needs write access).
-4. Under Authentication → Users → Add user, create one test user and copy its UUID.
-   Phase 1 has no login flow yet (that's Phase 2), so the demo script takes this UUID directly.
+3. Under Project Settings → API, copy the **Project URL** and both keys:
+   - **service_role** → goes in `backend/.env` (full write access, server-only, never expose it)
+   - **anon public** → goes in `frontend/.env` (safe to expose client-side; Row Level Security
+     in `schema.sql` scopes what it can actually do)
 
 ### 2. Gemini API key
 
-Get one free at https://aistudio.google.com/apikey.
+Get one free at https://aistudio.google.com/apikey. **Free tier is capped at 20
+requests/day per model** — each session start costs 2 calls (`analyze_profile` +
+`generate_question`) and each answer costs 1-2 more, so a handful of test interviews will
+burn through it fast. If you hit `429 RESOURCE_EXHAUSTED`, that's this daily cap, not a bug —
+wait for it to reset or use a different key.
 
 ### 3. Backend
 
@@ -29,25 +42,38 @@ cp .env.example .env          # then fill in GEMINI_API_KEY, SUPABASE_URL, SUPAB
 uvicorn app.main:app --reload
 ```
 
-### 4. Run the Phase 1 proof
-
-In another terminal, with the server running:
+### 4. Frontend
 
 ```bash
-pip install requests   # if not already installed
-python scripts/demo.py <the test user's UUID>
+cd frontend
+npm install
+cp .env.example .env          # fill in VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_BASE_URL
+npm run dev
 ```
 
-This creates a session (JD + resume → `analyze_profile` → one question), submits a
-deliberately weak answer, and asserts the `/answer` response never contains a score or
-feedback — even though both were computed and written to the `answers` table. Check the
-Supabase table editor afterward to see the stored score/feedback.
+Open the printed localhost URL, sign up (Supabase sends a confirmation email), sign in, paste
+a JD + resume, and go through the interview. Score/feedback are computed per answer but never
+shown — that's enforced at the API layer, not just hidden in the UI.
 
-## API (Phase 1 subset)
+### 5. Run the end-to-end proof
 
-| Endpoint                | Method | Returns score/feedback?              |
-| ----------------------- | ------ | ------------------------------------ |
-| `/sessions`             | POST   | No — just the first question         |
-| `/sessions/{id}/answer` | POST   | **No** — only `{recorded, has_next}` |
+With the backend running:
 
-Full endpoint set (history, summary, trends) lands in later phases per the roadmap.
+```bash
+pip install requests supabase   # if not already installed
+python scripts/demo.py <email> <password>   # a confirmed Supabase user (e.g. one you signed up via the frontend)
+```
+
+This runs a full interview via the real HTTP API — session creation, then answer/next-question
+turns in a loop until `route_after_eval` ends the session — asserting at every step that the
+`/answer` response never contains a score, feedback, or the next question's text.
+
+## API
+
+| Endpoint                        | Method | Returns score/feedback?              |
+| -------------------------------- | ------ | ------------------------------------ |
+| `/sessions`                      | POST   | No — just the first question         |
+| `/sessions/{id}/answer`          | POST   | **No** — only `{recorded, has_next}` |
+| `/sessions/{id}/next-question`   | GET    | No — just the next question, if any  |
+
+Session history, the results/summary screen, and score trends land in Phase 4+ per the roadmap.
