@@ -32,10 +32,18 @@ export function createSession({ role, jdText, resumeText }) {
 }
 
 // Deliberately returns only {recorded, has_next} — the backend never sends back
-// score/feedback here, by design (see the plan's "no live grading" contract).
+// score/feedback here, by design (see the plan's "no live grading" contract), and never the
+// next question's text either — fetch that separately via getNextQuestion.
 export function submitAnswer({ sessionId, questionId, answerText }) {
   return authedFetch(`/sessions/${sessionId}/answer`, {
     method: "POST",
     body: JSON.stringify({ question_id: questionId, answer_text: answerText }),
   });
+}
+
+// The current pending (unanswered) question for a session — used both to advance to the next
+// question after has_next=true, and to resume a session after a page refresh, since the
+// pending question now lives in Supabase rather than only in frontend router state.
+export function getNextQuestion({ sessionId }) {
+  return authedFetch(`/sessions/${sessionId}/next-question`);
 }
