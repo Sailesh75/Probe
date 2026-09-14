@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import sessions
+from app.routers import sessions, stats
 
 app = FastAPI(title="Interview Prep Simulator API", version="0.1.0")
 
@@ -13,6 +13,7 @@ app.add_middleware(
 )
 
 app.include_router(sessions.router)
+app.include_router(stats.router)
 
 
 @app.get("/health")

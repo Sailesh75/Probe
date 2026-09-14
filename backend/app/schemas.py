@@ -35,3 +35,22 @@ class EvaluationResult(BaseModel):
     needs_followup: bool = Field(
         description="True if the answer was vague/incomplete and deserves a probing follow-up."
     )
+
+
+class WeaknessPattern(BaseModel):
+    issue: str = Field(
+        description="A specific, recurring weakness observed across MULTIPLE answers — "
+        "not a one-off restated from a single question's feedback."
+    )
+    count: int = Field(description="How many answers in the transcript exhibited this issue.")
+
+
+class SessionSummary(BaseModel):
+    overall_feedback: str = Field(
+        description="A 2-4 sentence qualitative summary of the candidate's overall performance, "
+        "referencing specifics from the transcript."
+    )
+    patterns: list[WeaknessPattern] = Field(
+        description="Recurring weaknesses across the session. Empty if nothing recurred "
+        "(a single weak answer isn't a pattern)."
+    )

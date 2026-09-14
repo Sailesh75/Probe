@@ -58,6 +58,8 @@ def start_session(user_id: UUID, role: str, jd_text: str, resume_text: str) -> t
         "user_answer": "",
         "eval_result": None,
         "has_next": True,
+        "transcript": [],
+        "summary": None,
     }
     result = start_graph.invoke(initial_state)
 
@@ -115,6 +117,8 @@ def submit_answer(
         "user_answer": answer_text,
         "eval_result": None,
         "has_next": False,
+        "transcript": repo.get_transcript_for_session(session_id),
+        "summary": None,
     }
 
     result = turn_graph.invoke(state)
@@ -137,6 +141,16 @@ def submit_answer(
             is_followup=result["is_followup"],
             parent_question_id=question_id if result["is_followup"] else None,
         )
+    else:
+        # route_after_eval picked "end" -> summarize_session_node already ran.
+        summary = result["summary"]
+        repo.create_session_summary(
+            session_id=session_id,
+            overall_score=summary["overall_score"],
+            overall_feedback=summary["overall_feedback"],
+            patterns=summary["patterns"],
+        )
+        repo.update_session_status(session_id, "completed")
 
     return {"has_next": result["has_next"]}
 
@@ -160,3 +174,62 @@ def get_next_question(session_id: UUID, user_id: UUID) -> dict:
         raise ValueError("No pending question — the interview is complete")
 
     return latest
+
+
+def get_session_summary(session_id: UUID, user_id: UUID) -> dict:
+    """The results screen's data: overall score, recurring patterns, and the full
+    per-question breakdown. Only available once summarize_session_node has actually run —
+    i.e. the interview reached a natural end, not merely "the latest question is answered".
+    """
+    session_row = repo.get_session(session_id)
+    if session_row is None or session_row["user_id"] != str(user_id):
+        raise PermissionError("This session does not belong to the current user")
+
+    summary_row = repo.get_session_summary(session_id)
+    if summary_row is None:
+        raise ValueError("No summary yet — this interview isn't complete")
+
+    return {
+        "overall_score": summary_row["overall_score"],
+        "overall_feedback": summary_row["patterns"]["overall_feedback"],
+        "patterns": summary_row["patterns"]["issues"],
+        "questions": repo.get_transcript_for_session(session_id),
+    }
+
+
+def list_sessions(user_id: UUID) -> list[dict]:
+    """Past sessions for the history screen — no score/feedback here, just enough to list
+    and link into each one's results (once completed)."""
+    sessions = repo.get_sessions_for_user(user_id)
+    return [
+        {
+            "session_id": s["id"],
+            "role": s["role"],
+            "status": s["status"],
+            "created_at": s["created_at"],
+        }
+        for s in sessions
+    ]
+
+
+def get_score_trend(user_id: UUID) -> dict:
+    """Score trend across a user's completed sessions — the plan's section 6 "improvement
+    over time" hook. Simplified from the plan's sketch (which groups by a behavioral/
+    technical/system-design category): that needs a question-classification step nothing
+    upstream produces yet, so this groups by role instead, which the data already has.
+    """
+    sessions = repo.get_completed_sessions_with_summary(user_id)
+    scores = [s["overall_score"] for s in sessions]
+
+    if not scores:
+        return {"sessions": [], "trend": "not_enough_data", "avg_score": None}
+
+    trend = "not_enough_data"
+    if len(scores) >= 2:
+        trend = "improving" if scores[-1] > scores[0] else "flat_or_declining"
+
+    return {
+        "sessions": sessions,
+        "trend": trend,
+        "avg_score": round(sum(scores) / len(scores), 2),
+    }
