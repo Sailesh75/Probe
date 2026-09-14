@@ -91,3 +91,105 @@ def get_answer_for_question(question_id: UUID) -> dict[str, Any] | None:
         get_supabase().table("answers").select("*").eq("question_id", str(question_id)).execute()
     )
     return result.data[0] if result.data else None
+
+
+def get_transcript_for_session(session_id: UUID) -> list[dict[str, Any]]:
+    """Every already-answered question in the session, oldest first, flattened into the shape
+    summarize_session_node expects. One query (questions embedding their answers) instead of
+    N+1. Only includes answered questions — the current in-flight turn isn't in here yet;
+    evaluate_answer_node appends it itself before summarize_session_node runs."""
+    result = (
+        get_supabase()
+        .table("questions")
+        .select("*, answers(*)")
+        .eq("session_id", str(session_id))
+        .order("order_index")
+        .execute()
+    )
+    transcript = []
+    for q in result.data:
+        answers = q.get("answers") or []
+        if not answers:
+            continue
+        a = answers[0]
+        transcript.append(
+            {
+                "question": q["question_text"],
+                "target_area": q["target_area"],
+                "is_followup": q["is_followup"],
+                "answer": a["answer_text"],
+                "score": a["score"],
+                "feedback": a["feedback"],
+                "needs_followup": a["needs_followup"],
+            }
+        )
+    return transcript
+
+
+def update_session_status(session_id: UUID, status: str) -> None:
+    get_supabase().table("sessions").update({"status": status}).eq("id", str(session_id)).execute()
+
+
+def create_session_summary(
+    session_id: UUID, overall_score: float, overall_feedback: str, patterns: list[dict]
+) -> dict[str, Any]:
+    # `session_summaries.patterns` is jsonb with no fixed shape in the schema, so
+    # overall_feedback rides along inside it — avoids an ALTER TABLE for one extra string.
+    row = {
+        "session_id": str(session_id),
+        "overall_score": overall_score,
+        "patterns": {"overall_feedback": overall_feedback, "issues": patterns},
+    }
+    result = get_supabase().table("session_summaries").insert(row).execute()
+    return result.data[0]
+
+
+def get_session_summary(session_id: UUID) -> dict[str, Any] | None:
+    result = (
+        get_supabase()
+        .table("session_summaries")
+        .select("*")
+        .eq("session_id", str(session_id))
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+
+def get_sessions_for_user(user_id: UUID) -> list[dict[str, Any]]:
+    result = (
+        get_supabase()
+        .table("sessions")
+        .select("*")
+        .eq("user_id", str(user_id))
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return result.data
+
+
+def get_completed_sessions_with_summary(user_id: UUID) -> list[dict[str, Any]]:
+    """Completed sessions with their score, oldest first — the raw material for a trend
+    line. One query (sessions embedding session_summaries) instead of N+1."""
+    result = (
+        get_supabase()
+        .table("sessions")
+        .select("id, role, created_at, session_summaries(overall_score)")
+        .eq("user_id", str(user_id))
+        .eq("status", "completed")
+        .order("created_at")
+        .execute()
+    )
+    trend = []
+    for s in result.data:
+        summaries = s.get("session_summaries") or []
+        if not summaries:
+            continue
+        trend.append(
+            {
+                "session_id": s["id"],
+                "role": s["role"],
+                "created_at": s["created_at"],
+                "overall_score": summaries[0]["overall_score"],
+            }
+        )
+    return trend
