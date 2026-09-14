@@ -9,6 +9,7 @@
   --accent-fg: #ffffff;
   --error: #dc2626;
   --bubble-bg: #eef2ff;
+  --chart-line: #2563eb;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,6 +23,7 @@
     --accent-fg: #ffffff;
     --error: #f87171;
     --bubble-bg: #1e2a4a;
+    --chart-line: #60a5fa;
   }
 }
 
@@ -145,4 +147,142 @@ button.link {
 .bubble.interviewer {
   background: var(--bubble-bg);
   border-top-left-radius: 4px;
+}
+
+/* Trend chart */
+
+.trend-chart {
+  position: relative;
+}
+
+.trend-chart svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.trend-gridline {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.trend-axis-label {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.trend-tooltip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  pointer-events: none;
+}
+
+/* Stat tiles + results screen */
+
+.stat-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.stat-tile {
+  flex: 1;
+  min-width: 140px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+}
+
+.stat-tile .stat-value {
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.stat-tile .stat-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.pattern-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.pattern-list li {
+  background: var(--bubble-bg);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.9rem;
+}
+
+.question-breakdown {
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+.question-breakdown + .question-breakdown {
+  margin-top: 1rem;
+}
+
+.question-breakdown .score-badge {
+  display: inline-block;
+  background: var(--bubble-bg);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+
+/* Nav */
+
+.nav-links {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.session-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+}
+
+.status-badge {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--bubble-bg);
+  color: var(--muted);
+}
+
+.status-badge.completed {
+  color: var(--accent);
 }

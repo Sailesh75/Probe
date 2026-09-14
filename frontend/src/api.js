@@ -47,3 +47,20 @@ export function submitAnswer({ sessionId, questionId, answerText }) {
 export function getNextQuestion({ sessionId }) {
   return authedFetch(`/sessions/${sessionId}/next-question`);
 }
+
+// The results screen's data. Only available once the interview has actually ended — this is
+// the first point anywhere in the app that a score or feedback is ever shown.
+export function getSummary({ sessionId }) {
+  return authedFetch(`/sessions/${sessionId}/summary`);
+}
+
+// Past sessions for the history screen — no score/feedback, just enough to list and link
+// into each one's results once completed.
+export function listSessions() {
+  return authedFetch("/sessions");
+}
+
+// Score trend across the user's completed sessions.
+export function getTrends() {
+  return authedFetch("/stats/trends");
+}
