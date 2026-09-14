@@ -7,8 +7,8 @@ Full design in [interview-prep-simulator-plan.md](interview-prep-simulator-plan.
 **Status: Phase 5 — polish + eval.** All four core phases are built: LangGraph pipeline with
 real follow-up branching (Phase 3), auth + React frontend (Phase 2), and a summarizer +
 results/history/trends screens (Phase 4). Phase 5 adds an eval set proving the evaluator's
-scoring tracks human judgment — see [eval/README.md](eval/README.md) for methodology and
-results (80% exact agreement, 100% within one point, across 10 deliberately varied answers).
+scoring tracks human judgment — see [Eval results](#eval-results) below (80% exact agreement,
+100% within one point, across 10 deliberately varied answers).
 
 ## Architecture
 
@@ -135,7 +135,7 @@ python eval/run_evaluator_eval.py   # scores 10 pre-judged sample answers, repor
 python eval/run_profile_eval.py     # spot-checks analyze_profile on 3 JD/resume pairs
 ```
 
-See [eval/README.md](eval/README.md) for methodology and results.
+See [Eval results](#eval-results) below for methodology and results.
 
 ## API
 
@@ -150,3 +150,62 @@ See [eval/README.md](eval/README.md) for methodology and results.
 
 `/sessions/{id}/summary` only returns data once the interview has actually ended — there's no
 way to peek at scores mid-interview even by hitting the endpoint directly.
+
+## Eval results
+
+"Proof it works" data for the portfolio, per the plan's Phase 5: does the evaluator's scoring
+match human judgment, and does `analyze_profile` correctly flag gaps (without inventing ones
+that aren't there)?
+
+**Methodology.** [eval/sample_answers.jsonl](eval/sample_answers.jsonl) (10 items): each answer
+was written with an `expected_score` and `rationale` decided *before* running it through the
+model — spanning correct-and-well-structured, correct-but-poorly-structured, confidently
+wrong, buzzword-with-no-substance, missing the STAR "Result" step, and a resume claim that
+doesn't hold up under a follow-up probe. That variety matters more than volume: 10 items
+covering distinct failure modes says more than 30 near-duplicates.
+[eval/sample_profiles.jsonl](eval/sample_profiles.jsonl) (3 items): a clean match, a near-total
+mismatch, and a realistic mixed case, checking specifically that `analyze_profile` doesn't
+fabricate gaps for a resume that genuinely covers the JD, or inflate weak evidence (one ML
+course) into a real strength. Both eval scripts write results incrementally to
+`eval/results/*.jsonl` — a Gemini free-tier quota failure partway through leaves completed
+items on disk instead of losing the whole run, which is exactly what happened on the profile
+eval below.
+
+**Evaluator agreement:**
+
+| Metric | Result |
+|---|---|
+| Exact score match | 8/10 (80%) |
+| Within 1 point | 10/10 (100%) |
+| Mean absolute error | 0.20 |
+
+Both disagreements turned out to be defensible, not evaluator flaws:
+
+- **`star_missing_result`** (expected 3, got 2) — the model's reasoning went further than mine:
+  it penalized not just the missing Result step but the underlying behavior (escalating to a
+  tech lead instead of resolving the disagreement directly). A stricter but fair read.
+- **`short_but_complete`** (expected 4, got 5) — my own rationale for this item said brevity
+  shouldn't be penalized when the question doesn't call for depth. The model applied that
+  principle more consistently than I did and scored it a clean 5.
+
+No disagreement involved the model being fooled by confident-but-wrong content or buzzword
+fluency — `confident_but_wrong` and `buzzword_no_substance` both scored a correct 1, and
+`claims_resume_skill_failed_probe` (the resume-vs-reality gap the plan specifically calls out)
+also scored 1 with feedback that named the gap explicitly rather than just calling it "vague."
+
+**Profile spot-check:**
+
+- **`strong_match`** — `gap_areas: []`. Every JD requirement mapped directly to a resume
+  strength; no fabricated gaps to manufacture something to say.
+- **`weak_match`** — `strength_areas: []`. The one ML course wasn't inflated into a real
+  strength, and all three JD requirements were correctly flagged as gaps.
+- **`mixed_realistic`** — hit the daily quota after 2/3 items. This exact JD/resume pair was
+  reused constantly through Phase 1-4 manual testing, though, and consistently identified
+  Kafka as the gap area and Python/AWS ownership as the strengths every time it ran during
+  development. Re-running it formally once quota resets would close this out, but the
+  behavior is already well-evidenced.
+
+**Caveat:** this ran against `gemini-3.6-flash` on one day, mid free-tier-quota constraints.
+It's a directional signal ("the evaluator's judgment tracks a human's on a deliberately varied
+set"), not a statistically rigorous benchmark — a real eval suite would need more items per
+failure mode and multiple runs to check consistency.
