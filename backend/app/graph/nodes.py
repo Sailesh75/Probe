@@ -9,6 +9,7 @@ from app.graph.state import MAX_FOLLOWUPS_PER_QUESTION, MAX_QUESTIONS_PER_SESSIO
 from app.prompts.evaluator import evaluate_answer
 from app.prompts.interviewer import generate_followup_question, generate_question
 from app.prompts.profile_analyzer import analyze_profile
+from app.prompts.summarizer import summarize_session
 from app.schemas import ProfileAnalysis
 
 
@@ -62,18 +63,29 @@ def generate_question_node(state: InterviewState) -> dict:
 
 
 def evaluate_answer_node(state: InterviewState) -> dict:
-    """Node 2: scores the last answer — INTERNAL ONLY, never returned to the client mid-session."""
+    """Node 2: scores the last answer — INTERNAL ONLY, never returned to the client mid-session.
+    Also appends this turn to the transcript, which summarize_session_node reads if this turns
+    out to be the session's last question."""
     result = evaluate_answer(
         question_text=state["current_question"],
         target_area=state["current_question_target"],
         answer_text=state["user_answer"],
     )
+    eval_result = {
+        "score": result.score,
+        "feedback": result.feedback,
+        "needs_followup": result.needs_followup,
+    }
+    transcript_entry = {
+        "question": state["current_question"],
+        "target_area": state["current_question_target"],
+        "is_followup": state["is_followup"],
+        "answer": state["user_answer"],
+        **eval_result,
+    }
     return {
-        "eval_result": {
-            "score": result.score,
-            "feedback": result.feedback,
-            "needs_followup": result.needs_followup,
-        }
+        "eval_result": eval_result,
+        "transcript": state["transcript"] + [transcript_entry],
     }
 
 
@@ -100,6 +112,21 @@ def mark_has_next_question(state: InterviewState) -> dict:
 
 def mark_interview_complete(state: InterviewState) -> dict:
     return {"has_next": False}
+
+
+def summarize_session_node(state: InterviewState) -> dict:
+    """Node 4: runs once, when route_after_eval decides to end the session. This is the first
+    point anywhere in the flow that scores/feedback are revealed — everything before this was
+    computed (evaluate_answer_node) and stored but withheld from the client."""
+    result = summarize_session(role=state["role"], transcript=state["transcript"])
+    overall_score = sum(t["score"] for t in state["transcript"]) / len(state["transcript"])
+    return {
+        "summary": {
+            "overall_score": round(overall_score, 2),
+            "overall_feedback": result.overall_feedback,
+            "patterns": [p.model_dump() for p in result.patterns],
+        }
+    }
 
 
 def route_after_eval(state: InterviewState) -> Literal["followup", "next_question", "end"]:

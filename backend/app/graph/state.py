@@ -35,3 +35,7 @@ class InterviewState(TypedDict):
     user_answer: str
     eval_result: dict | None  # {score, feedback, needs_followup} — set by evaluate_answer_node
     has_next: bool  # set by the answer-turn graph: did routing produce another question?
+    transcript: list[dict]  # every prior {question, target_area, is_followup, answer, score,
+    # feedback, needs_followup} turn, reconstructed from Supabase — plus the current turn,
+    # appended by evaluate_answer_node. Used by summarize_session_node when the graph ends.
+    summary: dict | None  # {overall_feedback, patterns} — set by summarize_session_node
