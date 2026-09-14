@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -38,6 +39,33 @@ class NextQuestionResponse(BaseModel):
     question_id: UUID
     question_text: str
     is_followup: bool
+
+
+class QuestionBreakdown(BaseModel):
+    question_text: str
+    is_followup: bool
+    answer_text: str
+    score: int
+    feedback: str
+
+
+class WeaknessPatternResponse(BaseModel):
+    issue: str
+    count: int
+
+
+class SessionSummaryResponse(BaseModel):
+    overall_score: float
+    overall_feedback: str
+    patterns: list[WeaknessPatternResponse]
+    questions: list[QuestionBreakdown]
+
+
+class SessionListItem(BaseModel):
+    session_id: UUID
+    role: str
+    status: str
+    created_at: datetime
 
 
 @router.post("", response_model=CreateSessionResponse)
@@ -118,3 +146,43 @@ def next_question(
         question_text=question_row["question_text"],
         is_followup=question_row["is_followup"],
     )
+
+
+@router.get("/{session_id}/summary", response_model=SessionSummaryResponse)
+def get_summary(
+    session_id: UUID, user_id: UUID = Depends(get_current_user_id)
+) -> SessionSummaryResponse:
+    """The results screen: overall score, recurring patterns, and the full per-question
+    breakdown — the first point anywhere in the API that score/feedback are ever returned.
+    Only available once the interview has actually ended (summarize_session_node ran).
+    """
+    try:
+        data = pipeline.get_session_summary(session_id=session_id, user_id=user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    return SessionSummaryResponse(
+        overall_score=data["overall_score"],
+        overall_feedback=data["overall_feedback"],
+        patterns=[WeaknessPatternResponse(**p) for p in data["patterns"]],
+        questions=[
+            QuestionBreakdown(
+                question_text=q["question"],
+                is_followup=q["is_followup"],
+                answer_text=q["answer"],
+                score=q["score"],
+                feedback=q["feedback"],
+            )
+            for q in data["questions"]
+        ],
+    )
+
+
+@router.get("", response_model=list[SessionListItem])
+def list_sessions(user_id: UUID = Depends(get_current_user_id)) -> list[SessionListItem]:
+    """Past sessions for the history screen — no score/feedback, just enough to list and
+    link into each one's results once completed."""
+    sessions = pipeline.list_sessions(user_id=user_id)
+    return [SessionListItem(**s) for s in sessions]
