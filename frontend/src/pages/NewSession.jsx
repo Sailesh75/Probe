@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { createSession } from "../api";
 import { useAuth } from "../context/AuthContext";
 
@@ -34,9 +34,12 @@ export function NewSession() {
     <div className="page">
       <header className="topbar">
         <h2>New interview</h2>
-        <button className="link" onClick={signOut}>
-          Sign out
-        </button>
+        <div className="nav-links">
+          <Link to="/history">History</Link>
+          <button className="link" onClick={signOut}>
+            Sign out
+          </button>
+        </div>
       </header>
       <form className="card" onSubmit={handleSubmit}>
         <label>

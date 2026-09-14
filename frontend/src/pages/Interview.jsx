@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { getNextQuestion, submitAnswer } from "../api";
 import { useAuth } from "../context/AuthContext";
 
@@ -25,7 +25,6 @@ export function Interview() {
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [complete, setComplete] = useState(false);
 
   useEffect(() => {
     if (question) return;
@@ -42,9 +41,10 @@ export function Interview() {
       })
       .catch((err) => {
         if (cancelled) return;
-        // A 404 here means the interview's already done (e.g. resuming after it finished).
+        // A 404 here means the interview's already done (e.g. resuming after it finished) —
+        // the results screen is the right place to land, not a dead end on this page.
         if (err.message?.includes("complete") || err.message?.includes("No pending question")) {
-          setComplete(true);
+          navigate(`/results/${sessionId}`, { replace: true });
         } else {
           setError(err.message);
         }
@@ -69,13 +69,13 @@ export function Interview() {
         questionId: question.questionId,
         answerText: answer,
       });
-      setAnswer("");
 
       if (!result.has_next) {
-        setComplete(true);
+        navigate(`/results/${sessionId}`, { replace: true });
         return;
       }
 
+      setAnswer("");
       const next = await getNextQuestion({ sessionId });
       setQuestion({
         questionId: next.question_id,
@@ -97,9 +97,12 @@ export function Interview() {
     <div className="page">
       <header className="topbar">
         <h2>Interview</h2>
-        <button className="link" onClick={signOut}>
-          Sign out
-        </button>
+        <div className="nav-links">
+          <Link to="/history">History</Link>
+          <button className="link" onClick={signOut}>
+            Sign out
+          </button>
+        </div>
       </header>
 
       {question && (
@@ -109,32 +112,22 @@ export function Interview() {
         </div>
       )}
 
-      {complete ? (
-        <div className="card">
-          <p>
-            Interview complete. Every answer was scored internally, but nothing is shown here by
-            design — a results screen with the full breakdown lands in Phase 4.
-          </p>
-          <button onClick={() => navigate("/")}>Start another interview</button>
-        </div>
-      ) : (
-        <form className="card" onSubmit={handleSubmit}>
-          <label>
-            Your answer
-            <textarea
-              rows={6}
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              required
-              disabled={busy}
-            />
-          </label>
-          {error && <p className="error">{error}</p>}
-          <button type="submit" disabled={busy}>
-            {busy ? "Submitting…" : "Submit answer"}
-          </button>
-        </form>
-      )}
+      <form className="card" onSubmit={handleSubmit}>
+        <label>
+          Your answer
+          <textarea
+            rows={6}
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+            required
+            disabled={busy}
+          />
+        </label>
+        {error && <p className="error">{error}</p>}
+        <button type="submit" disabled={busy}>
+          {busy ? "Submitting…" : "Submit answer"}
+        </button>
+      </form>
     </div>
   );
 }
