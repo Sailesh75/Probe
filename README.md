@@ -2,6 +2,71 @@
 
 Multi-agent interview simulator: paste a job description + resume, get asked role-specific
 questions, get scored internally (no live grading), and see the full breakdown at the end.
+Full design in [interview-prep-simulator-plan.md](interview-prep-simulator-plan.md).
+
+**Status: Phase 5 — polish + eval.** All four core phases are built: LangGraph pipeline with
+real follow-up branching (Phase 3), auth + React frontend (Phase 2), and a summarizer +
+results/history/trends screens (Phase 4). Phase 5 adds an eval set proving the evaluator's
+scoring tracks human judgment — see [eval/README.md](eval/README.md) for methodology and
+results (80% exact agreement, 100% within one point, across 10 deliberately varied answers).
+
+## Architecture
+
+```
+paste JD + resume
+       │
+       ▼
+┌─────────────────────┐
+│ analyze_profile      │  node 0 — runs once; the JD/resume pairing is a real input to
+└──────────┬───────────┘  question selection, not two textareas concatenated into a prompt
+           ▼
+┌─────────────────────┐
+│ generate_question    │◄─┐  prefers gap_areas; follow-up mode probes deeper on the same
+└──────────┬───────────┘  │  target_area instead of asking a fresh question
+           ▼               │
+    [user answers]         │
+           ▼               │
+┌─────────────────────┐    │
+│ evaluate_answer       │   │  INTERNAL ONLY — appends to the transcript, never
+└──────────┬───────────┘    │  reaches the client until summarize_session runs
+           ▼               │
+┌─────────────────────┐    │
+│ route_after_eval      │───┘  the real branch: follow up (capped) / next question
+└──────────┬───────────┘       (capped) / end — decided by the evaluator's actual output
+           ▼ (end)
+┌─────────────────────┐
+│ summarize_session     │  first point anywhere scores/patterns are revealed
+└──────────────────────┘
+```
+
+Backend: FastAPI + LangGraph (`backend/app/graph/`) + Gemini (`gemini-3.6-flash`) + Supabase
+(Postgres + auth). Frontend: React + Vite, no state library — Supabase's session and a bit of
+router state cover it. Full endpoint list in [API](#api) below.
+
+### Decisions worth knowing about
+
+- **The graph runs per-request, not as one long-lived process.** Each HTTP call re-hydrates
+  just enough `InterviewState` from Supabase (transcript, follow-up count, etc.) and runs one
+  of two compiled graphs to completion synchronously. No LangGraph checkpointer — Supabase's
+  tables are the actual durable state, which is simpler and avoids a second source of truth.
+- **The no-live-grading rule is enforced at the API boundary, not the UI.** `/answer` and
+  `/next-question` are structurally incapable of returning a score — the response models don't
+  have the field. Hiding it only in the frontend would leave it visible to anyone hitting the
+  API directly.
+- **`user_id` always comes from a verified Supabase JWT, never a request body field.** An
+  earlier version trusted a client-supplied `user_id`; that's spoofable, so `get_current_user_id`
+  verifies the token server-side before anything else runs.
+- **Gemini model pinned to `gemini-3.6-flash`, not the plan's original `gemini-2.0-flash`** —
+  that model (and its stable successor `2.5-flash`) were both retired for new users during
+  development. Structured output calls also retry transient 429/5xx errors with backoff and
+  carry an explicit 30s timeout — the client library has no default timeout, which caused a
+  real 5+ minute hang during testing before this was added.
+- **`session_summaries.patterns` is a jsonb blob holding `{overall_feedback, issues}`**, not a
+  bare pattern list — reusing the schema's loose jsonb column instead of an `ALTER TABLE` for
+  one extra string.
+- **Score trends group by role, not the plan's sketched behavioral/technical/system-design
+  category** — that split needs a question-classification step nothing upstream produces yet;
+  role is what the data already has without inventing new machinery for it.
 
 ## Setup
 
@@ -60,6 +125,17 @@ python scripts/demo.py <email> <password>   # a confirmed Supabase user (e.g. on
 This runs a full interview via the real HTTP API — session creation, then answer/next-question
 turns in a loop until `route_after_eval` ends the session — asserting at every step that the
 `/answer` response never contains a score, feedback, or the next question's text.
+
+### 6. Run the eval set
+
+No running server needed — these import the backend code directly:
+
+```bash
+python eval/run_evaluator_eval.py   # scores 10 pre-judged sample answers, reports agreement
+python eval/run_profile_eval.py     # spot-checks analyze_profile on 3 JD/resume pairs
+```
+
+See [eval/README.md](eval/README.md) for methodology and results.
 
 ## API
 
