@@ -4,11 +4,12 @@ Multi-agent interview simulator: paste a job description + resume, get asked rol
 questions, get scored internally (no live grading), and see the full breakdown at the end.
 Full design in [interview-prep-simulator-plan.md](interview-prep-simulator-plan.md).
 
-**Status: Phase 3 — agentic pipeline.** A LangGraph graph (`backend/app/graph/`) now runs
-`analyze_profile` → `generate_question` ⇄ `evaluate_answer` → `route_after_eval`, with real
-follow-up branching (capped per question) and a multi-question session (capped per session).
-Frontend (React) and auth (Supabase) landed in Phase 2. See the plan's Build Roadmap for
-what's next (Phase 4: summarizer + results screen + score trends).
+**Status: Phase 4 — summarizer + results + trends.** When `route_after_eval` ends a session,
+the graph now runs a `summarize_session` node — the first point anywhere in the app that a
+score or pattern is ever revealed. The results screen shows the overall score, recurring
+weaknesses across answers, and a full per-question breakdown; a history screen lists past
+sessions with a score-over-time chart. LangGraph pipeline (Phase 3), frontend + auth (Phase 2)
+landed earlier. See the plan's Build Roadmap for what's next (Phase 5: eval set + polish).
 
 ## Setup
 
@@ -70,10 +71,14 @@ turns in a loop until `route_after_eval` ends the session — asserting at every
 
 ## API
 
-| Endpoint                        | Method | Returns score/feedback?              |
-| -------------------------------- | ------ | ------------------------------------ |
-| `/sessions`                      | POST   | No — just the first question         |
-| `/sessions/{id}/answer`          | POST   | **No** — only `{recorded, has_next}` |
-| `/sessions/{id}/next-question`   | GET    | No — just the next question, if any  |
+| Endpoint                       | Method | Returns score/feedback?              |
+| ------------------------------- | ------ | ------------------------------------ |
+| `/sessions`                     | POST   | No — just the first question         |
+| `/sessions/{id}/answer`         | POST   | **No** — only `{recorded, has_next}` |
+| `/sessions/{id}/next-question`  | GET    | No — just the next question, if any  |
+| `/sessions/{id}/summary`        | GET    | **Yes** — overall score, patterns, full per-question breakdown |
+| `/sessions`                     | GET    | No — session list for history        |
+| `/stats/trends`                 | GET    | Yes (aggregate) — score trend across completed sessions |
 
-Session history, the results/summary screen, and score trends land in Phase 4+ per the roadmap.
+`/sessions/{id}/summary` only returns data once the interview has actually ended — there's no
+way to peek at scores mid-interview even by hitting the endpoint directly.
