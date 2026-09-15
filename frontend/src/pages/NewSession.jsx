@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { createSession } from "../api";
+import { createSession, parseResume } from "../api";
 import { useAuth } from "../context/AuthContext";
 
 export function NewSession() {
@@ -9,8 +9,29 @@ export function NewSession() {
   const [resumeText, setResumeText] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [parsingResume, setParsingResume] = useState(false);
+  const [parseNotice, setParseNotice] = useState("");
   const navigate = useNavigate();
   const { signOut } = useAuth();
+
+  async function handleResumeFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file) return;
+
+    setError("");
+    setParseNotice("");
+    setParsingResume(true);
+    try {
+      const { text } = await parseResume({ file });
+      setResumeText(text);
+      setParseNotice(`Extracted text from ${file.name} — review it below before starting.`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setParsingResume(false);
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -67,10 +88,16 @@ export function NewSession() {
             rows={8}
             value={resumeText}
             onChange={(e) => setResumeText(e.target.value)}
-            placeholder="Paste your resume here"
+            placeholder="Paste your resume here, or upload a file below"
             required
           />
         </label>
+        <label>
+          Or upload a resume (PDF/DOCX)
+          <input type="file" accept=".pdf,.docx" onChange={handleResumeFile} disabled={parsingResume} />
+        </label>
+        {parsingResume && <p className="muted">Extracting text…</p>}
+        {parseNotice && <p className="info">{parseNotice}</p>}
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={busy}>
           {busy ? "Analyzing your profile…" : "Start interview"}
