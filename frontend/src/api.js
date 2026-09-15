@@ -23,6 +23,41 @@ async function authedFetch(path, options = {}) {
   return res.json();
 }
 
+// Like authedFetch, but for multipart file uploads — no Content-Type header (the browser sets
+// the multipart boundary itself), and the body is FormData rather than a JSON string.
+async function authedUpload(path, file) {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error("Not authenticated");
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || `Request failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+// Extracts plain text from an uploaded PDF/DOCX resume. Callers should treat the result as a
+// starting point to review/edit, not submit silently — parsing can mangle odd layouts.
+export function parseResume({ file }) {
+  return authedUpload("/resume/parse", file);
+}
+
+// Speech-to-text for a recorded answer (Gemini's native audio input, no separate Whisper key).
+// Same "review before submit" rule as parseResume — transcription can be wrong.
+export function transcribeAudio({ file }) {
+  return authedUpload("/voice/transcribe", file);
+}
+
 // user_id is never sent here — the backend derives it from the auth token itself.
 export function createSession({ role, jdText, resumeText }) {
   return authedFetch("/sessions", {
