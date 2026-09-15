@@ -149,6 +149,34 @@ button.link {
   border-top-left-radius: 4px;
 }
 
+.chat .link {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+}
+
+/* Voice controls */
+
+.voice-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.voice-controls button.recording {
+  background: var(--error);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
 /* Trend chart */
 
 .trend-chart {
