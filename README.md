@@ -4,12 +4,6 @@ Multi-agent interview simulator: paste a job description + resume, get asked rol
 questions, get scored internally (no live grading), and see the full breakdown at the end.
 Full design in [interview-prep-simulator-plan.md](interview-prep-simulator-plan.md).
 
-**Status: Phase 5 — polish + eval.** All four core phases are built: LangGraph pipeline with
-real follow-up branching (Phase 3), auth + React frontend (Phase 2), and a summarizer +
-results/history/trends screens (Phase 4). Phase 5 adds an eval set proving the evaluator's
-scoring tracks human judgment — see [Eval results](#eval-results) below (80% exact agreement,
-100% within one point, across 10 deliberately varied answers).
-
 ## Architecture
 
 ```
@@ -158,7 +152,7 @@ match human judgment, and does `analyze_profile` correctly flag gaps (without in
 that aren't there)?
 
 **Methodology.** [eval/sample_answers.jsonl](eval/sample_answers.jsonl) (10 items): each answer
-was written with an `expected_score` and `rationale` decided *before* running it through the
+was written with an `expected_score` and `rationale` decided _before_ running it through the
 model — spanning correct-and-well-structured, correct-but-poorly-structured, confidently
 wrong, buzzword-with-no-substance, missing the STAR "Result" step, and a resume claim that
 doesn't hold up under a follow-up probe. That variety matters more than volume: 10 items
@@ -173,11 +167,11 @@ eval below.
 
 **Evaluator agreement:**
 
-| Metric | Result |
-|---|---|
-| Exact score match | 8/10 (80%) |
-| Within 1 point | 10/10 (100%) |
-| Mean absolute error | 0.20 |
+| Metric              | Result       |
+| ------------------- | ------------ |
+| Exact score match   | 8/10 (80%)   |
+| Within 1 point      | 10/10 (100%) |
+| Mean absolute error | 0.20         |
 
 Both disagreements turned out to be defensible, not evaluator flaws:
 
