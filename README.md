@@ -2,7 +2,6 @@
 
 Multi-agent interview simulator: paste a job description + resume, get asked role-specific
 questions, get scored internally (no live grading), and see the full breakdown at the end.
-Full design in [interview-prep-simulator-plan.md](interview-prep-simulator-plan.md).
 
 ## Architecture
 
@@ -37,6 +36,14 @@ Backend: FastAPI + LangGraph (`backend/app/graph/`) + Gemini (`gemini-3.6-flash`
 (Postgres + auth). Frontend: React + Vite, no state library — Supabase's session and a bit of
 router state cover it. Full endpoint list in [API](#api) below.
 
+Two optional inputs shape the interview without changing its core targeting: a resume can be
+pasted or uploaded as PDF/DOCX (parsed server-side, dropped into the same editable field for
+review), and pasting a company's real interview questions (e.g. from Glassdoor) shifts the
+interviewer's tone/phrasing to match that company while still targeting the resume/JD gaps.
+Answers can be typed or spoken (🎤 records, transcribes via Gemini's audio input, and drops the
+text into the same editable field); questions can be read aloud via the browser's built-in
+speech synthesis.
+
 ### Decisions worth knowing about
 
 - **The graph runs per-request, not as one long-lived process.** Each HTTP call re-hydrates
@@ -50,17 +57,28 @@ router state cover it. Full endpoint list in [API](#api) below.
 - **`user_id` always comes from a verified Supabase JWT, never a request body field.** An
   earlier version trusted a client-supplied `user_id`; that's spoofable, so `get_current_user_id`
   verifies the token server-side before anything else runs.
-- **Gemini model pinned to `gemini-3.6-flash`, not the plan's original `gemini-2.0-flash`** —
-  that model (and its stable successor `2.5-flash`) were both retired for new users during
-  development. Structured output calls also retry transient 429/5xx errors with backoff and
-  carry an explicit 30s timeout — the client library has no default timeout, which caused a
-  real 5+ minute hang during testing before this was added.
+- **Gemini model pinned to `gemini-3.6-flash`.** Earlier picks (`gemini-2.0-flash`, then its
+  stable successor `2.5-flash`) were both retired for new users during development. Structured
+  output calls also retry transient 429/5xx errors with backoff and carry an explicit 30s
+  timeout — the client library has no default timeout, which caused a real 5+ minute hang
+  during testing before this was added.
 - **`session_summaries.patterns` is a jsonb blob holding `{overall_feedback, issues}`**, not a
   bare pattern list — reusing the schema's loose jsonb column instead of an `ALTER TABLE` for
   one extra string.
-- **Score trends group by role, not the plan's sketched behavioral/technical/system-design
-  category** — that split needs a question-classification step nothing upstream produces yet;
-  role is what the data already has without inventing new machinery for it.
+- **Score trends group by role**, not a finer behavioral/technical/system-design category —
+  that split needs a question-classification step nothing upstream produces yet; role is what
+  the data already has without inventing new machinery for it.
+- **Voice transcription reuses Gemini instead of a separate Whisper API** — verified
+  `gemini-3.6-flash` transcribes real speech correctly with the same key everything else uses,
+  so voice input needed zero new setup (no OpenAI account/billing). Uploaded resumes and
+  recorded answers both follow the same rule: the extracted/transcribed text lands in an
+  editable field for review, never submitted automatically — both parsing and transcription
+  can be wrong.
+- **Company-style mode blends style with targeting, not one or the other.** The prompt is
+  explicit that pasted questions set tone/phrasing/emphasis, not a literal question bank to
+  reuse — verified against a real Gemini call: with a "design a system that handles 1M
+  req/sec" style sample, the generated question kept probing the actual Kafka gap but shifted
+  to matching system-design phrasing instead of the plain "have you used Kafka" default.
 
 ## Setup
 
@@ -104,8 +122,11 @@ npm run dev
 ```
 
 Open the printed localhost URL, sign up (Supabase sends a confirmation email), sign in, paste
-a JD + resume, and go through the interview. Score/feedback are computed per answer but never
-shown — that's enforced at the API layer, not just hidden in the UI.
+a JD + resume (or upload a PDF/DOCX), and go through the interview — typed or spoken (the 🎤
+button needs mic permission, which browsers only grant on `localhost` or HTTPS, so this works
+in local dev and will keep working once deployed, just not over plain HTTP). Score/feedback
+are computed per answer but never shown — that's enforced at the API layer, not just hidden in
+the UI.
 
 ### 5. Run the end-to-end proof
 
@@ -133,23 +154,24 @@ See [Eval results](#eval-results) below for methodology and results.
 
 ## API
 
-| Endpoint                       | Method | Returns score/feedback?                                        |
-| ------------------------------ | ------ | -------------------------------------------------------------- |
-| `/sessions`                    | POST   | No — just the first question                                   |
-| `/sessions/{id}/answer`        | POST   | **No** — only `{recorded, has_next}`                           |
-| `/sessions/{id}/next-question` | GET    | No — just the next question, if any                            |
-| `/sessions/{id}/summary`       | GET    | **Yes** — overall score, patterns, full per-question breakdown |
-| `/sessions`                    | GET    | No — session list for history                                  |
-| `/stats/trends`                | GET    | Yes (aggregate) — score trend across completed sessions        |
+| Endpoint                       | Method | Returns score/feedback?                                          |
+| ------------------------------ | ------ | ------------------------------------------------------------------ |
+| `/sessions`                    | POST   | No — just the first question (`company_style_text` is optional) |
+| `/sessions/{id}/answer`        | POST   | **No** — only `{recorded, has_next}`                             |
+| `/sessions/{id}/next-question` | GET    | No — just the next question, if any                              |
+| `/sessions/{id}/summary`       | GET    | **Yes** — overall score, patterns, full per-question breakdown   |
+| `/sessions`                    | GET    | No — session list for history                                    |
+| `/stats/trends`                | GET    | Yes (aggregate) — score trend across completed sessions          |
+| `/resume/parse`                | POST   | No — extracted resume text (PDF/DOCX)                            |
+| `/voice/transcribe`            | POST   | No — transcribed answer text                                     |
 
 `/sessions/{id}/summary` only returns data once the interview has actually ended — there's no
 way to peek at scores mid-interview even by hitting the endpoint directly.
 
 ## Eval results
 
-"Proof it works" data for the portfolio, per the plan's Phase 5: does the evaluator's scoring
-match human judgment, and does `analyze_profile` correctly flag gaps (without inventing ones
-that aren't there)?
+Does the evaluator's scoring match human judgment, and does `analyze_profile` correctly flag
+gaps (without inventing ones that aren't there)?
 
 **Methodology.** [eval/sample_answers.jsonl](eval/sample_answers.jsonl) (10 items): each answer
 was written with an `expected_score` and `rationale` decided _before_ running it through the
@@ -184,8 +206,9 @@ Both disagreements turned out to be defensible, not evaluator flaws:
 
 No disagreement involved the model being fooled by confident-but-wrong content or buzzword
 fluency — `confident_but_wrong` and `buzzword_no_substance` both scored a correct 1, and
-`claims_resume_skill_failed_probe` (the resume-vs-reality gap the plan specifically calls out)
-also scored 1 with feedback that named the gap explicitly rather than just calling it "vague."
+`claims_resume_skill_failed_probe` (a resume claim that doesn't hold up under a follow-up
+probe) also scored 1 with feedback that named the gap explicitly rather than just calling it
+"vague."
 
 **Profile spot-check:**
 
@@ -194,10 +217,10 @@ also scored 1 with feedback that named the gap explicitly rather than just calli
 - **`weak_match`** — `strength_areas: []`. The one ML course wasn't inflated into a real
   strength, and all three JD requirements were correctly flagged as gaps.
 - **`mixed_realistic`** — hit the daily quota after 2/3 items. This exact JD/resume pair was
-  reused constantly through Phase 1-4 manual testing, though, and consistently identified
-  Kafka as the gap area and Python/AWS ownership as the strengths every time it ran during
-  development. Re-running it formally once quota resets would close this out, but the
-  behavior is already well-evidenced.
+  reused constantly through manual testing, though, and consistently identified Kafka as the
+  gap area and Python/AWS ownership as the strengths every time it ran during development.
+  Re-running it formally once quota resets would close this out, but the behavior is already
+  well-evidenced.
 
 **Caveat:** this ran against `gemini-3.6-flash` on one day, mid free-tier-quota constraints.
 It's a directional signal ("the evaluator's judgment tracks a human's on a deliberately varied
