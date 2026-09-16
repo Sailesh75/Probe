@@ -8,6 +8,7 @@ create table if not exists sessions (
   role text not null,               -- e.g. "SWE", "Data Analyst"
   jd_text text,
   resume_text text,
+  company_style_text text,          -- optional: pasted real questions (e.g. Glassdoor) to mimic
   jd_requirements jsonb,             -- extracted by analyze_profile
   resume_highlights jsonb,
   gap_areas jsonb,
