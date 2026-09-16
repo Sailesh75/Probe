@@ -34,7 +34,9 @@ def _trailing_followup_count(questions: list[dict]) -> int:
     return count
 
 
-def start_session(user_id: UUID, role: str, jd_text: str, resume_text: str) -> tuple[dict, dict]:
+def start_session(
+    user_id: UUID, role: str, jd_text: str, resume_text: str, company_style_text: str = ""
+) -> tuple[dict, dict]:
     """analyze_profile -> generate the first question, via the start graph.
 
     Returns (session_row, question_row).
@@ -44,6 +46,7 @@ def start_session(user_id: UUID, role: str, jd_text: str, resume_text: str) -> t
         "profile": SessionProfile(
             jd_text=jd_text,
             resume_text=resume_text,
+            company_style_text=company_style_text,
             jd_requirements=[],
             resume_highlights=[],
             gap_areas=[],
@@ -69,6 +72,7 @@ def start_session(user_id: UUID, role: str, jd_text: str, resume_text: str) -> t
         jd_text=jd_text,
         resume_text=resume_text,
         profile=_profile_analysis(result["profile"]),
+        company_style_text=company_style_text,
     )
     question_row = repo.create_question(
         session_id=session_row["id"],
@@ -103,6 +107,7 @@ def submit_answer(
         "profile": SessionProfile(
             jd_text=session_row["jd_text"],
             resume_text=session_row["resume_text"],
+            company_style_text=session_row.get("company_style_text") or "",
             jd_requirements=session_row["jd_requirements"] or [],
             resume_highlights=session_row["resume_highlights"] or [],
             gap_areas=session_row["gap_areas"] or [],
