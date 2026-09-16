@@ -14,13 +14,19 @@ from app.schemas import ProfileAnalysis
 
 
 def create_session(
-    user_id: UUID, role: str, jd_text: str, resume_text: str, profile: ProfileAnalysis
+    user_id: UUID,
+    role: str,
+    jd_text: str,
+    resume_text: str,
+    profile: ProfileAnalysis,
+    company_style_text: str = "",
 ) -> dict[str, Any]:
     row = {
         "user_id": str(user_id),
         "role": role,
         "jd_text": jd_text,
         "resume_text": resume_text,
+        "company_style_text": company_style_text or None,
         "jd_requirements": profile.jd_requirements,
         "resume_highlights": profile.resume_highlights,
         "gap_areas": profile.gap_areas,
