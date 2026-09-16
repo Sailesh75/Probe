@@ -17,6 +17,7 @@ MAX_FOLLOWUPS_PER_QUESTION = 2
 class SessionProfile(TypedDict):
     jd_text: str
     resume_text: str
+    company_style_text: str  # optional: pasted real questions (e.g. Glassdoor) to mimic; "" if none
     jd_requirements: list[str]
     resume_highlights: list[str]
     gap_areas: list[str]

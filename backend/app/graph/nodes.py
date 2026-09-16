@@ -40,6 +40,7 @@ def analyze_profile_node(state: InterviewState) -> dict:
 def generate_question_node(state: InterviewState) -> dict:
     """Node 1: a fresh question (preferring gap_areas) or a targeted follow-up, depending
     on `is_followup` — set by route_after_eval before this node re-runs."""
+    company_style_text = state["profile"].get("company_style_text", "")
     if state["is_followup"]:
         question = generate_followup_question(
             role=state["role"],
@@ -47,12 +48,14 @@ def generate_question_node(state: InterviewState) -> dict:
             previous_question=state["current_question"],
             previous_answer=state["user_answer"],
             feedback=(state["eval_result"] or {}).get("feedback", ""),
+            company_style_text=company_style_text,
         )
     else:
         question = generate_question(
             role=state["role"],
             profile=_profile_from_state(state),
             asked_questions=state["asked_questions"],
+            company_style_text=company_style_text,
         )
 
     return {
