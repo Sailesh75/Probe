@@ -17,6 +17,7 @@ class CreateSessionRequest(BaseModel):
     role: str
     jd_text: str
     resume_text: str
+    company_style_text: str = ""  # optional: pasted real questions (e.g. Glassdoor) to mimic
 
 
 class CreateSessionResponse(BaseModel):
@@ -84,6 +85,7 @@ def create_session(
             role=body.role,
             jd_text=body.jd_text,
             resume_text=body.resume_text,
+            company_style_text=body.company_style_text,
         )
     except Exception as exc:  # LLM or DB failure
         logger.exception("create_session failed for user %s", user_id)
