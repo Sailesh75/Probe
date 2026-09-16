@@ -59,10 +59,17 @@ export function transcribeAudio({ file }) {
 }
 
 // user_id is never sent here — the backend derives it from the auth token itself.
-export function createSession({ role, jdText, resumeText }) {
+// companyStyleText is optional — pasted real questions (e.g. Glassdoor) the interviewer
+// matches the tone/emphasis of without abandoning the resume/JD gap targeting.
+export function createSession({ role, jdText, resumeText, companyStyleText = "" }) {
   return authedFetch("/sessions", {
     method: "POST",
-    body: JSON.stringify({ role, jd_text: jdText, resume_text: resumeText }),
+    body: JSON.stringify({
+      role,
+      jd_text: jdText,
+      resume_text: resumeText,
+      company_style_text: companyStyleText,
+    }),
   });
 }
 
