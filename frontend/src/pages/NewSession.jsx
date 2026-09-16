@@ -7,6 +7,7 @@ export function NewSession() {
   const [role, setRole] = useState("");
   const [jdText, setJdText] = useState("");
   const [resumeText, setResumeText] = useState("");
+  const [companyStyleText, setCompanyStyleText] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [parsingResume, setParsingResume] = useState(false);
@@ -38,7 +39,7 @@ export function NewSession() {
     setError("");
     setBusy(true);
     try {
-      const data = await createSession({ role, jdText, resumeText });
+      const data = await createSession({ role, jdText, resumeText, companyStyleText });
       // Phase 1's API only hands back a question at session-creation time (no GET-question
       // endpoint yet), so it rides along as router state into the Interview page.
       navigate(`/interview/${data.session_id}`, {
@@ -98,6 +99,24 @@ export function NewSession() {
         </label>
         {parsingResume && <p className="muted">Extracting text…</p>}
         {parseNotice && <p className="info">{parseNotice}</p>}
+
+        <details>
+          <summary>Company-style mode (optional)</summary>
+          <label style={{ marginTop: "0.75rem" }}>
+            Paste real questions from this company (e.g. from Glassdoor)
+            <textarea
+              rows={5}
+              value={companyStyleText}
+              onChange={(e) => setCompanyStyleText(e.target.value)}
+              placeholder={"One per line, e.g.:\nTell me about a time you disagreed with a decision.\nDesign a system that handles 1M requests/sec."}
+            />
+          </label>
+          <p className="muted" style={{ margin: "0.4rem 0 0" }}>
+            The interviewer will match this company's tone and emphasis — it still targets your
+            resume/JD gaps, it just asks about them the way this company tends to.
+          </p>
+        </details>
+
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={busy}>
           {busy ? "Analyzing your profile…" : "Start interview"}
