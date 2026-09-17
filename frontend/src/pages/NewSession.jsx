@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { createSession, parseResume } from "../api";
+import { createSession, isServiceUnavailable, parseResume } from "../api";
 import { useAuth } from "../context/AuthContext";
+import { ServiceNotice } from "../components/ServiceNotice";
 
 export function NewSession() {
   const [role, setRole] = useState("");
   const [jdText, setJdText] = useState("");
   const [resumeText, setResumeText] = useState("");
   const [companyStyleText, setCompanyStyleText] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(null); // the raw Error, so isServiceUnavailable can inspect it
   const [busy, setBusy] = useState(false);
   const [parsingResume, setParsingResume] = useState(false);
   const [parseNotice, setParseNotice] = useState("");
@@ -20,7 +21,7 @@ export function NewSession() {
     e.target.value = ""; // allow re-selecting the same file later
     if (!file) return;
 
-    setError("");
+    setError(null);
     setParseNotice("");
     setParsingResume(true);
     try {
@@ -28,7 +29,7 @@ export function NewSession() {
       setResumeText(text);
       setParseNotice(`Extracted text from ${file.name} — review it below before starting.`);
     } catch (err) {
-      setError(err.message);
+      setError(err);
     } finally {
       setParsingResume(false);
     }
@@ -36,7 +37,7 @@ export function NewSession() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setError("");
+    setError(null);
     setBusy(true);
     try {
       const data = await createSession({ role, jdText, resumeText, companyStyleText });
@@ -46,7 +47,7 @@ export function NewSession() {
         state: { questionId: data.question_id, questionText: data.question_text },
       });
     } catch (err) {
-      setError(err.message);
+      setError(err);
     } finally {
       setBusy(false);
     }
@@ -117,7 +118,12 @@ export function NewSession() {
           </p>
         </details>
 
-        {error && <p className="error">{error}</p>}
+        {error &&
+          (isServiceUnavailable(error) ? (
+            <ServiceNotice message={error.message} />
+          ) : (
+            <p className="error">{error.message}</p>
+          ))}
         <button type="submit" disabled={busy}>
           {busy ? "Analyzing your profile…" : "Start interview"}
         </button>

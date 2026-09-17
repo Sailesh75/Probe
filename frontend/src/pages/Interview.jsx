@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { getNextQuestion, submitAnswer, transcribeAudio } from "../api";
+import { getNextQuestion, isServiceUnavailable, submitAnswer, transcribeAudio } from "../api";
 import { useAuth } from "../context/AuthContext";
+import { ServiceNotice } from "../components/ServiceNotice";
 
 export function Interview() {
   const { sessionId } = useParams();
@@ -23,7 +24,7 @@ export function Interview() {
   );
   const [loadingQuestion, setLoadingQuestion] = useState(!location.state?.questionId);
   const [answer, setAnswer] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(null); // the raw Error, so isServiceUnavailable can inspect it
   const [busy, setBusy] = useState(false);
 
   const [speaking, setSpeaking] = useState(false);
@@ -52,7 +53,7 @@ export function Interview() {
         if (err.message?.includes("complete") || err.message?.includes("No pending question")) {
           navigate(`/results/${sessionId}`, { replace: true });
         } else {
-          setError(err.message);
+          setError(err);
         }
       })
       .finally(() => {
@@ -65,31 +66,40 @@ export function Interview() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
-  // Stop any in-flight speech when the question changes or the page is left, so a stale
-  // question's audio never keeps playing over a new one.
-  useEffect(() => {
-    return () => window.speechSynthesis?.cancel();
-  }, [question?.questionId]);
-
-  function handleReadAloud() {
+  function speak(text) {
     if (!("speechSynthesis" in window)) {
-      setError("Voice output isn't supported in this browser.");
+      setError(new Error("Voice output isn't supported in this browser."));
       return;
     }
-    if (speaking) {
-      window.speechSynthesis.cancel();
-      setSpeaking(false);
-      return;
-    }
-    const utterance = new SpeechSynthesisUtterance(question.questionText);
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
     setSpeaking(true);
     window.speechSynthesis.speak(utterance);
   }
 
+  // Reads each question aloud automatically the moment it's ready — like an interviewer
+  // actually asking it, not text you have to remember to play. Also cancels any in-flight
+  // speech when the question changes or the page is left, so a stale question's audio never
+  // keeps playing over a new one.
+  useEffect(() => {
+    if (question) speak(question.questionText);
+    return () => window.speechSynthesis?.cancel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [question?.questionId]);
+
+  function handleReadAloud() {
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    speak(question.questionText);
+  }
+
   async function handleStartRecording() {
-    setError("");
+    setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
@@ -106,11 +116,12 @@ export function Interview() {
         setTranscribing(true);
         try {
           const { text } = await transcribeAudio({ file });
-          // Appended, not replaced — lets someone record in a couple of takes without
-          // losing what they'd already typed or said.
+          // Appended, not replaced — lets someone answer across a couple of takes (natural
+          // pauses) without losing what they'd already said. There's no typing here to fix a
+          // bad take with, so a full restart is what "Clear" below is for.
           setAnswer((prev) => (prev ? `${prev} ${text}` : text));
         } catch (err) {
-          setError(err.message);
+          setError(err);
         } finally {
           setTranscribing(false);
         }
@@ -120,7 +131,7 @@ export function Interview() {
       recorder.start();
       setRecording(true);
     } catch {
-      setError("Couldn't access the microphone — check your browser's permission settings.");
+      setError(new Error("Couldn't access the microphone — check your browser's permission settings."));
     }
   }
 
@@ -131,7 +142,7 @@ export function Interview() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setError("");
+    setError(null);
     setBusy(true);
     try {
       const result = await submitAnswer({
@@ -153,7 +164,7 @@ export function Interview() {
         isFollowup: next.is_followup,
       });
     } catch (err) {
-      setError(err.message);
+      setError(err);
     } finally {
       setBusy(false);
     }
@@ -180,23 +191,14 @@ export function Interview() {
           {question.isFollowup && <p className="muted">Follow-up:</p>}
           <div className="bubble interviewer">{question.questionText}</div>
           <button type="button" className="link" onClick={handleReadAloud}>
-            {speaking ? "⏹ Stop" : "🔊 Read aloud"}
+            {speaking ? "⏹ Stop" : "🔊 Replay question"}
           </button>
+
+          {answer && <div className="bubble candidate">{answer}</div>}
         </div>
       )}
 
       <form className="card" onSubmit={handleSubmit}>
-        <label>
-          Your answer
-          <textarea
-            rows={6}
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            required
-            disabled={busy}
-          />
-        </label>
-
         <div className="voice-controls">
           {recording ? (
             <button type="button" onClick={handleStopRecording} className="recording">
@@ -204,14 +206,33 @@ export function Interview() {
             </button>
           ) : (
             <button type="button" onClick={handleStartRecording} disabled={busy || transcribing}>
-              🎤 Record answer
+              🎤 {answer ? "Record more" : "Record answer"}
+            </button>
+          )}
+          {answer && !recording && (
+            <button
+              type="button"
+              className="link"
+              onClick={() => setAnswer("")}
+              disabled={busy || transcribing}
+            >
+              🗑 Clear
             </button>
           )}
           {transcribing && <span className="muted">Transcribing…</span>}
         </div>
 
-        {error && <p className="error">{error}</p>}
-        <button type="submit" disabled={busy || recording || transcribing}>
+        {!answer && !recording && !transcribing && (
+          <p className="muted">Record your answer — there's nothing to type here.</p>
+        )}
+
+        {error &&
+          (isServiceUnavailable(error) ? (
+            <ServiceNotice message={error.message} />
+          ) : (
+            <p className="error">{error.message}</p>
+          ))}
+        <button type="submit" disabled={busy || recording || transcribing || !answer}>
           {busy ? "Submitting…" : "Submit answer"}
         </button>
       </form>
