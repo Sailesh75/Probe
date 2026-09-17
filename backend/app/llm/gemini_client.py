@@ -44,6 +44,30 @@ _RETRYABLE_NETWORK_ERRORS = (requests.exceptions.Timeout, requests.exceptions.Co
 T = TypeVar("T")
 
 
+class GeminiUnavailableError(RuntimeError):
+    """Raised when every model in the fallback chain failed with a retryable error — a quota
+    exhaustion (429) or a sustained outage (5xx/network) on Google's side, not a bug in our
+    code. Callers (routers) catch this specifically to tell the user plainly what's wrong
+    instead of surfacing a raw google.genai error blob."""
+
+    def __init__(self, cause: Exception):
+        self.cause = cause
+        self.is_quota = isinstance(cause, errors.APIError) and cause.code == 429
+        super().__init__(str(cause))
+
+    def user_message(self) -> str:
+        """A clean, user-facing explanation — never the raw google.genai error blob."""
+        if self.is_quota:
+            return (
+                "The AI service has hit its usage quota for now. This resets daily — "
+                "please try again later."
+            )
+        return (
+            "The AI service is temporarily unavailable (high demand on Google's side). "
+            "This is usually short-lived — please try again in a minute."
+        )
+
+
 @lru_cache
 def get_client() -> genai.Client:
     settings = get_settings()
@@ -83,7 +107,7 @@ def _with_retry(call: Callable[[str], T]) -> T:
 
             is_last_attempt = attempt == attempts - 1
             if is_last_attempt and is_last_model:
-                raise last_error
+                raise GeminiUnavailableError(last_error) from last_error
             if not is_last_attempt:
                 time.sleep(_BACKOFF_SECONDS * (2**attempt))
             # else: this model's attempts are exhausted but another model remains — move on
@@ -95,7 +119,7 @@ def _with_retry(call: Callable[[str], T]) -> T:
 
     # Unreachable — the loop above always either returns or raises — but keeps type checkers happy.
     assert last_error is not None
-    raise last_error
+    raise GeminiUnavailableError(last_error) from last_error
 
 
 def generate_structured(prompt: str, schema: type[BaseModel]) -> BaseModel:

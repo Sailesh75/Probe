@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from app import pipeline
 from app.auth import get_current_user_id
+from app.llm.gemini_client import GeminiUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,10 @@ def create_session(
             resume_text=body.resume_text,
             company_style_text=body.company_style_text,
         )
-    except Exception as exc:  # LLM or DB failure
+    except GeminiUnavailableError as exc:
+        logger.warning("create_session: Gemini unavailable for user %s: %s", user_id, exc)
+        raise HTTPException(status_code=503, detail=exc.user_message()) from exc
+    except Exception as exc:  # DB failure or other bug
         logger.exception("create_session failed for user %s", user_id)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -121,7 +125,10 @@ def submit_answer(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
-    except Exception as exc:  # LLM or DB failure
+    except GeminiUnavailableError as exc:
+        logger.warning("submit_answer: Gemini unavailable for session %s: %s", session_id, exc)
+        raise HTTPException(status_code=503, detail=exc.user_message()) from exc
+    except Exception as exc:  # DB failure or other bug
         logger.exception("submit_answer failed for session %s", session_id)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

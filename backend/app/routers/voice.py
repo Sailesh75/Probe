@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from app.auth import get_current_user_id
+from app.llm.gemini_client import GeminiUnavailableError
 from app.prompts.transcriber import transcribe_answer
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,9 @@ async def transcribe(file: UploadFile, user_id=Depends(get_current_user_id)) -> 
     mime_type = file.content_type or "audio/webm"
     try:
         text = transcribe_answer(file_bytes, mime_type)
+    except GeminiUnavailableError as exc:
+        logger.warning("voice transcription: Gemini unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail=exc.user_message()) from exc
     except Exception as exc:
         logger.exception("audio transcription failed")
         raise HTTPException(status_code=502, detail=str(exc)) from exc
