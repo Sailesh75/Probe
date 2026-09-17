@@ -51,19 +51,27 @@ def get_client() -> genai.Client:
 
 
 def _with_retry(call: Callable[[str], T]) -> T:
-    """Retries transient errors (rate limits, "high demand" 5xxs, stalled connections) with
-    backoff, and falls back through MODEL_FALLBACKS if a model is persistently unavailable —
-    not just retrying the same overloaded model repeatedly. A non-retryable error (a genuinely
-    broken request) still fails immediately, on any model. Shared by every Gemini call shape
-    (structured JSON, audio transcription, ...).
+    """Falls back through MODEL_FALLBACKS if a model errors, retrying with backoff only on
+    the last model in the chain. A non-retryable error (a genuinely broken request) still
+    fails immediately, on any model. Shared by every Gemini call shape (structured JSON,
+    audio transcription, ...).
+
+    Earlier models get exactly one attempt before moving on — no backoff. In practice a
+    "high demand" 503 on the primary model tends to be a sustained outage, not a one-off
+    blip that clears within a couple of retries (confirmed in testing: every retry on the
+    primary failed, every fallback succeeded on its first try) — so retrying the same
+    struggling model 3 times with backoff before ever trying a different one just adds
+    ~10s of dead time to every single request for no benefit. Full retry-with-backoff is
+    reserved for the last model, since there's nowhere left to fall back to from there.
     """
     models = [MODEL, *MODEL_FALLBACKS]
     last_error: Exception | None = None
 
     for model_index, model in enumerate(models):
         is_last_model = model_index == len(models) - 1
+        attempts = _MAX_ATTEMPTS if is_last_model else 1
 
-        for attempt in range(_MAX_ATTEMPTS):
+        for attempt in range(attempts):
             try:
                 return call(model)
             except errors.APIError as exc:
@@ -73,7 +81,7 @@ def _with_retry(call: Callable[[str], T]) -> T:
             except _RETRYABLE_NETWORK_ERRORS as exc:
                 last_error = exc
 
-            is_last_attempt = attempt == _MAX_ATTEMPTS - 1
+            is_last_attempt = attempt == attempts - 1
             if is_last_attempt and is_last_model:
                 raise last_error
             if not is_last_attempt:
