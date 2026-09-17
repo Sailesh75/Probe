@@ -2,6 +2,24 @@ import { supabase } from "./supabaseClient";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
+// Attaches the HTTP status to the thrown Error so callers can distinguish "the AI service is
+// down/out of quota" (503 — see isServiceUnavailable below) from other failures (validation,
+// auth, a real bug) by status code rather than fragile string-matching on the message text.
+async function throwApiError(res) {
+  const body = await res.json().catch(() => ({}));
+  const error = new Error(body.detail || `Request failed: ${res.status}`);
+  error.status = res.status;
+  throw error;
+}
+
+// True for the specific "AI service unavailable — quota or high demand" case the backend
+// raises as 503 with a clean, already user-facing message (see GeminiUnavailableError on the
+// backend). Callers use this to show a distinct "try again later" notice instead of a generic
+// inline error.
+export function isServiceUnavailable(err) {
+  return err?.status === 503;
+}
+
 async function authedFetch(path, options = {}) {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
@@ -16,10 +34,7 @@ async function authedFetch(path, options = {}) {
     },
   });
 
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail || `Request failed: ${res.status}`);
-  }
+  if (!res.ok) await throwApiError(res);
   return res.json();
 }
 
@@ -39,10 +54,7 @@ async function authedUpload(path, file) {
     body: formData,
   });
 
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail || `Request failed: ${res.status}`);
-  }
+  if (!res.ok) await throwApiError(res);
   return res.json();
 }
 
