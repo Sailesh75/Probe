@@ -57,11 +57,19 @@ speech synthesis.
 - **`user_id` always comes from a verified Supabase JWT, never a request body field.** An
   earlier version trusted a client-supplied `user_id`; that's spoofable, so `get_current_user_id`
   verifies the token server-side before anything else runs.
-- **Gemini model pinned to `gemini-3.6-flash`.** Earlier picks (`gemini-2.0-flash`, then its
-  stable successor `2.5-flash`) were both retired for new users during development. Structured
-  output calls also retry transient 429/5xx errors with backoff and carry an explicit 30s
-  timeout — the client library has no default timeout, which caused a real 5+ minute hang
-  during testing before this was added.
+- **Gemini model pinned to `gemini-3.6-flash`, with same-provider fallback models behind it.**
+  Earlier picks (`gemini-2.0-flash`, then its stable successor `2.5-flash`) were both retired
+  for new users during development, and "high demand" 503s from Google's side are common
+  enough to hit in normal use. Rather than just retrying the same overloaded model, a
+  persistently unavailable model now falls through to `gemini-flash-lite-latest` then
+  `gemini-3.1-flash-lite` — both verified live and structured-output-capable — before giving
+  up. Considered a cross-provider fallback (e.g. DeepSeek) too, but that needs a separate
+  account/key, isn't actually free long-term (a one-time trial credit, then paid), needs its
+  own JSON-mode code path instead of Gemini's native schema enforcement, and wouldn't cover
+  audio transcription — a same-provider fallback fixes the actual failure mode (one model
+  overloaded) for free. Structured output calls also retry transient 429/5xx errors with
+  backoff and carry an explicit 30s timeout — the client library has no default timeout, which
+  caused a real 5+ minute hang during testing before this was added.
 - **`session_summaries.patterns` is a jsonb blob holding `{overall_feedback, issues}`**, not a
   bare pattern list — reusing the schema's loose jsonb column instead of an `ALTER TABLE` for
   one extra string.
