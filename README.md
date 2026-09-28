@@ -1,7 +1,14 @@
-# Interview Prep Simulator
+# Probe
 
-Multi-agent interview simulator: paste a job description + resume, get asked role-specific
-questions, get scored internally (no live grading), and see the full breakdown at the end.
+**An AI mock interviewer that probes the gaps between your resume and the job.**
+
+Paste a job description + resume, and a multi-agent LangGraph pipeline interviews you on
+what the role needs but your resume doesn't clearly show — following up when an answer is
+weak, scoring every answer internally (no live grading, like a real interview), and revealing
+the full breakdown and recurring weak spots only at the end.
+
+**Live demo:** https://agentic-interview-prep-psi.vercel.app (the backend is on Render's free tier, so
+the first request after it has been idle can take 30–60s to wake up).
 
 ## Architecture
 
@@ -131,8 +138,8 @@ npm run dev
 
 Open the printed localhost URL, sign up (Supabase sends a confirmation email), sign in, paste
 a JD + resume (or upload a PDF/DOCX), and go through the interview — typed or spoken (the 🎤
-button needs mic permission, which browsers only grant on `localhost` or HTTPS, so this works
-in local dev and will keep working once deployed, just not over plain HTTP). Score/feedback
+button needs mic permission, which browsers only grant on `localhost` or HTTPS, so it works in
+local dev and on the deployed site, just not over plain HTTP). Score/feedback
 are computed per answer but never shown — that's enforced at the API layer, not just hidden in
 the UI.
 
@@ -159,6 +166,34 @@ python eval/run_profile_eval.py     # spot-checks analyze_profile on 3 JD/resume
 ```
 
 See [Eval results](#eval-results) below for methodology and results.
+
+## Deployment
+
+| Part     | Host   | URL                                              |
+| -------- | ------ | ------------------------------------------------ |
+| Frontend | Vercel | https://agentic-interview-prep-psi.vercel.app    |
+| Backend  | Render | https://agentic-interview-prep.onrender.com      |
+
+**Backend (Render web service):** root directory `backend`, build command
+`pip install -r requirements.txt`, start command
+`uvicorn app.main:app --host 0.0.0.0 --port $PORT`. Python version is pinned by
+[backend/.python-version](backend/.python-version). Environment variables: `GEMINI_API_KEY`,
+`SUPABASE_URL`, `SUPABASE_KEY`, and `CORS_ORIGINS` set to the frontend's exact origin
+(`https://agentic-interview-prep-psi.vercel.app`, including the scheme and no trailing slash;
+comma-separate more than one). `GET /health` is a cheap liveness check.
+
+**Frontend (Vercel):** root directory `frontend`, Vite preset. Environment variables:
+`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `VITE_API_BASE_URL` pointing at the Render
+URL. These are baked in at build time, so changing one needs a redeploy.
+[frontend/vercel.json](frontend/vercel.json) rewrites every path to `index.html` so that deep
+links like `/results/<id>` survive a page refresh instead of returning a 404.
+
+**Supabase:** add the Vercel URL under Authentication → URL Configuration (Site URL and redirect
+URLs) so sign-up confirmation emails link back to the deployed site instead of `localhost`.
+
+**Free-tier limits worth knowing:** Render spins the backend down after ~15 min idle (cold start
+on the next request), and the Gemini free tier's 20 requests/day per model means only a few
+full interviews per day before fallbacks and then `429`s kick in.
 
 ## API
 
