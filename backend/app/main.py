@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.routers import resume, sessions, stats, voice
 
-app = FastAPI(title="Interview Prep Simulator API", version="0.1.0")
+app = FastAPI(title="Probe API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,

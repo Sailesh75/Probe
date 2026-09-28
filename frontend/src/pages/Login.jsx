@@ -40,7 +40,7 @@ export function Login() {
   return (
     <div className="page-center">
       <form className="card" onSubmit={handleSubmit}>
-        <h1>Interview Prep Simulator</h1>
+        <h1>Probe</h1>
         <p className="muted">
           {mode === "sign-in" ? "Sign in to start a session" : "Create an account"}
         </p>

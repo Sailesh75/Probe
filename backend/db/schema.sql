@@ -1,4 +1,4 @@
--- Phase 1 schema for agentic-interview-prep
+-- Phase 1 schema for Probe
 -- Run this in the Supabase SQL Editor (Project -> SQL Editor -> New query).
 -- users are handled by Supabase Auth automatically (auth.users)
 
