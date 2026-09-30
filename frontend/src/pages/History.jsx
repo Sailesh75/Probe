@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getTrends, listSessions } from "../api";
+import { TopBar } from "../components/TopBar";
 import { TrendChart } from "../components/TrendChart";
-import { useAuth } from "../context/AuthContext";
 
 const TREND_LABEL = {
   improving: "Improving 📈",
@@ -11,7 +11,6 @@ const TREND_LABEL = {
 };
 
 export function History() {
-  const { signOut } = useAuth();
   const [sessions, setSessions] = useState([]);
   const [trend, setTrend] = useState(null);
   const [error, setError] = useState("");
@@ -38,15 +37,8 @@ export function History() {
 
   return (
     <div className="page">
-      <header className="topbar">
-        <h2>History</h2>
-        <div className="nav-links">
-          <Link to="/">New interview</Link>
-          <button className="link" onClick={signOut}>
-            Sign out
-          </button>
-        </div>
-      </header>
+      <TopBar links={[{ to: "/", label: "New interview" }]} />
+      <h1 className="page-title">History</h1>
 
       {loading && <p className="muted">Loading…</p>}
       {error && <p className="error">{error}</p>}
