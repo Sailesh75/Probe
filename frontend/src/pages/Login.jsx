@@ -37,6 +37,22 @@ export function Login() {
     }
   }
 
+  async function handleOAuth(provider) {
+    setError("");
+    setInfo("");
+    setBusy(true);
+    // Redirects away to the provider; on success Supabase sends the browser back to the site
+    // root with the session in the URL, which supabase-js picks up on load.
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: window.location.origin },
+    });
+    if (oauthError) {
+      setError(oauthError.message);
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="page-center">
       <form className="card" onSubmit={handleSubmit}>
@@ -44,6 +60,23 @@ export function Login() {
         <p className="muted">
           {mode === "sign-in" ? "Sign in to start a session" : "Create an account"}
         </p>
+        <button
+          type="button"
+          className="oauth"
+          onClick={() => handleOAuth("google")}
+          disabled={busy}
+        >
+          Continue with Google
+        </button>
+        <button
+          type="button"
+          className="oauth"
+          onClick={() => handleOAuth("github")}
+          disabled={busy}
+        >
+          Continue with GitHub
+        </button>
+        <div className="divider">or use email</div>
         <label>
           Email
           <input
