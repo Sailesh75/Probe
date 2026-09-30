@@ -7,7 +7,7 @@ what the role needs but your resume doesn't clearly show — following up when a
 weak, scoring every answer internally (no live grading, like a real interview), and revealing
 the full breakdown and recurring weak spots only at the end.
 
-**Live demo:** https://agentic-interview-prep-psi.vercel.app (the backend is on Render's free tier, so
+**Live demo:** https://probe-interview-ai.vercel.app (the backend is on Render's free tier, so
 the first request after it has been idle can take 30–60s to wake up).
 
 ## Architecture
@@ -171,7 +171,7 @@ See [Eval results](#eval-results) below for methodology and results.
 
 | Part     | Host   | URL                                              |
 | -------- | ------ | ------------------------------------------------ |
-| Frontend | Vercel | https://agentic-interview-prep-psi.vercel.app    |
+| Frontend | Vercel | https://probe-interview-ai.vercel.app            |
 | Backend  | Render | https://agentic-interview-prep.onrender.com      |
 
 **Backend (Render web service):** root directory `backend`, build command
@@ -179,7 +179,7 @@ See [Eval results](#eval-results) below for methodology and results.
 `uvicorn app.main:app --host 0.0.0.0 --port $PORT`. Python version is pinned by
 [backend/.python-version](backend/.python-version). Environment variables: `GEMINI_API_KEY`,
 `SUPABASE_URL`, `SUPABASE_KEY`, and `CORS_ORIGINS` set to the frontend's exact origin
-(`https://agentic-interview-prep-psi.vercel.app`, including the scheme and no trailing slash;
+(`https://probe-interview-ai.vercel.app`, including the scheme and no trailing slash;
 comma-separate more than one). `GET /health` is a cheap liveness check.
 
 **Frontend (Vercel):** root directory `frontend`, Vite preset. Environment variables:
