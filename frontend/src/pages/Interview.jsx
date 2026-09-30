@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { getNextQuestion, isServiceUnavailable, submitAnswer, transcribeAudio } from "../api";
-import { useAuth } from "../context/AuthContext";
+import { TopBar } from "../components/TopBar";
 import { ServiceNotice } from "../components/ServiceNotice";
 
 export function Interview() {
   const { sessionId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { signOut } = useAuth();
 
   // Seeded from router state when arriving fresh from NewSession; re-fetched from the backend
   // on mount otherwise (page refresh, or arriving via a bookmarked/shared URL) — the pending
@@ -176,15 +175,8 @@ export function Interview() {
 
   return (
     <div className="page">
-      <header className="topbar">
-        <h2>Interview</h2>
-        <div className="nav-links">
-          <Link to="/history">History</Link>
-          <button className="link" onClick={signOut}>
-            Sign out
-          </button>
-        </div>
-      </header>
+      <TopBar links={[{ to: "/history", label: "History" }]} />
+      <h1 className="page-title">Interview</h1>
 
       {question && (
         <div className="chat">
