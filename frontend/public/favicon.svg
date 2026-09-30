@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    .ring { stroke: #0a0a0b; }
+    .dot { fill: #5b5bf0; }
+    @media (prefers-color-scheme: dark) {
+      .ring { stroke: #f4f4f5; }
+      .dot { fill: #8b8bff; }
+    }
+  </style>
+  <defs>
+    <!-- Cuts a gap in the ring around the dot, matching the in-app mark's bg-colored halo. -->
+    <mask id="gap">
+      <rect width="32" height="32" fill="#fff" />
+      <circle cx="26" cy="26" r="9" fill="#000" />
+    </mask>
+  </defs>
+  <circle class="ring" cx="13.5" cy="13.5" r="11" fill="none" stroke-width="4.5" mask="url(#gap)" />
+  <circle class="dot" cx="26" cy="26" r="5.5" />
+</svg>
