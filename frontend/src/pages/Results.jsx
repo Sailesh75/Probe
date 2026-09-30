@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { getSummary } from "../api";
-import { useAuth } from "../context/AuthContext";
+import { TopBar } from "../components/TopBar";
 
 export function Results() {
   const { sessionId } = useParams();
-  const { signOut } = useAuth();
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -29,16 +28,13 @@ export function Results() {
 
   return (
     <div className="page">
-      <header className="topbar">
-        <h2>Results</h2>
-        <div className="nav-links">
-          <Link to="/history">History</Link>
-          <Link to="/">New interview</Link>
-          <button className="link" onClick={signOut}>
-            Sign out
-          </button>
-        </div>
-      </header>
+      <TopBar
+        links={[
+          { to: "/history", label: "History" },
+          { to: "/", label: "New interview" },
+        ]}
+      />
+      <h1 className="page-title">Results</h1>
 
       {loading && <p className="muted">Loading results…</p>}
       {error && <p className="error">{error}</p>}
