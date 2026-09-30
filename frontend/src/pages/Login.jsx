@@ -27,9 +27,14 @@ export function Login() {
         if (signInError) throw signInError;
         navigate("/");
       } else {
-        const { error: signUpError } = await supabase.auth.signUp({ email, password });
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+        });
         if (signUpError) throw signUpError;
-        setInfo("Account created. Check your email to confirm it, then sign in.");
+        setInfo(
+          "Account created. Check your email to confirm it, then sign in.",
+        );
         setMode("sign-in");
       }
     } catch (err) {
@@ -66,8 +71,9 @@ export function Login() {
             Interviews that <em>dig deeper.</em>
           </h1>
           <p className="muted showcase-sub">
-            Paste a job description and your resume. Probe finds the gaps between them and
-            interviews you on exactly those — following up when an answer falls short.
+            Paste a job description and your resume. Probe finds the gaps
+            between them and interviews you on exactly those following up when
+            an answer falls short.
           </p>
         </div>
         <div className="transcript">
@@ -86,7 +92,6 @@ export function Login() {
             What happens to message ordering when you add partitions?
           </div>
         </div>
-        <p className="showcase-foot">Scores stay hidden until the interview ends.</p>
       </section>
 
       <section className="auth-panel">
@@ -97,7 +102,9 @@ export function Login() {
           <div>
             <h2>{isSignIn ? "Welcome back" : "Create your account"}</h2>
             <p className="muted">
-              {isSignIn ? "Sign in to start a mock interview." : "It takes less than a minute."}
+              {isSignIn
+                ? "Sign in to start a mock interview."
+                : "It takes less than a minute."}
             </p>
           </div>
           <label>
