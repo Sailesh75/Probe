@@ -27,7 +27,9 @@ export function NewSession() {
     try {
       const { text } = await parseResume({ file });
       setResumeText(text);
-      setParseNotice(`Extracted text from ${file.name} — review it before starting.`);
+      setParseNotice(
+        `Extracted text from ${file.name} — review it before starting.`,
+      );
     } catch (err) {
       setError(err);
     } finally {
@@ -40,11 +42,19 @@ export function NewSession() {
     setError(null);
     setBusy(true);
     try {
-      const data = await createSession({ role, jdText, resumeText, companyStyleText });
+      const data = await createSession({
+        role,
+        jdText,
+        resumeText,
+        companyStyleText,
+      });
       // Phase 1's API only hands back a question at session-creation time (no GET-question
       // endpoint yet), so it rides along as router state into the Interview page.
       navigate(`/interview/${data.session_id}`, {
-        state: { questionId: data.question_id, questionText: data.question_text },
+        state: {
+          questionId: data.question_id,
+          questionText: data.question_text,
+        },
       });
     } catch (err) {
       setError(err);
@@ -137,11 +147,14 @@ export function NewSession() {
               rows={5}
               value={companyStyleText}
               onChange={(e) => setCompanyStyleText(e.target.value)}
-              placeholder={"One per line, e.g.:\nTell me about a time you disagreed with a decision.\nDesign a system that handles 1M requests/sec."}
+              placeholder={
+                "One per line, e.g.:\nTell me about a time you disagreed with a decision.\nDesign a system that handles 1M requests/sec."
+              }
             />
             <p className="muted small">
-              The interviewer will match this company's tone and emphasis — it still targets your
-              resume/JD gaps, it just asks about them the way this company tends to.
+              The interviewer will match this company's tone and emphasis — it
+              still targets your resume/JD gaps, it just asks about them the way
+              this company tends to.
             </p>
           </div>
         </details>
@@ -153,7 +166,6 @@ export function NewSession() {
             <p className="error">{error.message}</p>
           ))}
         <div className="form-footer">
-          <p className="muted small">Scores stay hidden until the interview ends.</p>
           <button type="submit" className="primary" disabled={busy}>
             {busy ? "Analyzing your profile…" : "Start interview"}
             {!busy && <ArrowIcon />}
