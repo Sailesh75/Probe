@@ -17,6 +17,10 @@ Score 1-5 (1 = did not address the question / no substance, 5 = clear, specific,
 directly answers what was asked). Give concrete feedback tied to specifics in the answer, not
 generic advice. Set needs_followup=true only if the answer is vague, incomplete, or dodges the
 target area in a way a real interviewer would want to press on.
+
+If the target area starts with "Behavioral", judge it as a behavioral answer: a strong one gives
+a specific, real situation, the candidate's own actions (not just "we"), and a concrete result or
+lesson (STAR-style). For a hypothetical scenario question, look for a clear, reasoned approach.
 """
 
 

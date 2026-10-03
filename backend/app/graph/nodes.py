@@ -3,11 +3,22 @@ persistence to Supabase happens in pipeline.py, not here, keeping these nodes te
 without a database and mirroring Phase 1's prompts/db separation.
 """
 
+import random
 from typing import Literal
 
-from app.graph.state import MAX_FOLLOWUPS_PER_QUESTION, MAX_QUESTIONS_PER_SESSION, InterviewState
+from app.graph.state import (
+    BEHAVIORAL_QUESTIONS_PER_SESSION,
+    BEHAVIORAL_TARGET_PREFIX,
+    MAX_FOLLOWUPS_PER_QUESTION,
+    MAX_QUESTIONS_PER_SESSION,
+    InterviewState,
+)
 from app.prompts.evaluator import evaluate_answer
-from app.prompts.interviewer import generate_followup_question, generate_question
+from app.prompts.interviewer import (
+    generate_behavioral_question,
+    generate_followup_question,
+    generate_question,
+)
 from app.prompts.profile_analyzer import analyze_profile
 from app.prompts.summarizer import summarize_session
 from app.schemas import ProfileAnalysis
@@ -37,6 +48,17 @@ def analyze_profile_node(state: InterviewState) -> dict:
     }
 
 
+def _next_is_behavioral(state: InterviewState) -> bool:
+    """Picks this fresh question's type so a session ends up with exactly
+    BEHAVIORAL_QUESTIONS_PER_SESSION behavioral questions, at random positions: each slot is
+    behavioral with probability (behavioral still owed) / (slots still open, this one included)."""
+    behavioral_left = BEHAVIORAL_QUESTIONS_PER_SESSION - state["behavioral_asked"]
+    slots_left = MAX_QUESTIONS_PER_SESSION - state["questions_asked"] + 1
+    if behavioral_left <= 0 or slots_left <= 0:
+        return False
+    return random.random() < behavioral_left / slots_left
+
+
 def generate_question_node(state: InterviewState) -> dict:
     """Node 1: a fresh question (preferring gap_areas) or a targeted follow-up, depending
     on `is_followup` — set by route_after_eval before this node re-runs."""
@@ -50,6 +72,19 @@ def generate_question_node(state: InterviewState) -> dict:
             feedback=(state["eval_result"] or {}).get("feedback", ""),
             company_style_text=company_style_text,
         )
+    elif _next_is_behavioral(state):
+        question = generate_behavioral_question(
+            role=state["role"],
+            jd_text=state["profile"]["jd_text"],
+            asked_questions=state["asked_questions"],
+            company_style_text=company_style_text,
+        )
+        return {
+            "current_question": question.question_text,
+            "current_question_target": BEHAVIORAL_TARGET_PREFIX + question.target_area,
+            "asked_questions": state["asked_questions"] + [question.question_text],
+            "behavioral_asked": state["behavioral_asked"] + 1,
+        }
     else:
         question = generate_question(
             role=state["role"],

@@ -8,10 +8,20 @@ state; this TypedDict is the graph's working memory for a single turn.
 
 from typing import TypedDict
 
-# How many fresh (non-followup) questions make up one interview, and how many
-# consecutive follow-ups the evaluator can trigger before we move on regardless.
-MAX_QUESTIONS_PER_SESSION = 5
+# How many fresh (non-followup) questions make up one interview, how many of those are
+# behavioral rather than JD/resume-driven technical ones, and how many consecutive
+# follow-ups the evaluator can trigger before we move on regardless.
+MAX_QUESTIONS_PER_SESSION = 8
+BEHAVIORAL_QUESTIONS_PER_SESSION = 3
 MAX_FOLLOWUPS_PER_QUESTION = 2
+
+# Behavioral questions are marked by this prefix on their stored target_area — that's how a
+# rehydrated session knows how many it has already asked, without a schema change.
+BEHAVIORAL_TARGET_PREFIX = "Behavioral — "
+
+
+def is_behavioral(target_area: str) -> bool:
+    return target_area.startswith(BEHAVIORAL_TARGET_PREFIX)
 
 
 class SessionProfile(TypedDict):
@@ -33,6 +43,7 @@ class InterviewState(TypedDict):
     is_followup: bool
     followup_count: int  # consecutive follow-ups already asked for the current fresh question
     questions_asked: int  # fresh (non-followup) questions asked so far, including the current one
+    behavioral_asked: int  # how many of those fresh questions were behavioral
     user_answer: str
     eval_result: dict | None  # {score, feedback, needs_followup} — set by evaluate_answer_node
     has_next: bool  # set by the answer-turn graph: did routing produce another question?
