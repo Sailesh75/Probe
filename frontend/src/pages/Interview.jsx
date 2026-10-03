@@ -18,6 +18,8 @@ export function Interview() {
           questionId: location.state.questionId,
           questionText: location.state.questionText,
           isFollowup: false,
+          questionNumber: location.state.questionNumber,
+          totalQuestions: location.state.totalQuestions,
         }
       : null,
   );
@@ -43,6 +45,8 @@ export function Interview() {
           questionId: data.question_id,
           questionText: data.question_text,
           isFollowup: data.is_followup,
+          questionNumber: data.question_number,
+          totalQuestions: data.total_questions,
         });
       })
       .catch((err) => {
@@ -161,6 +165,8 @@ export function Interview() {
         questionId: next.question_id,
         questionText: next.question_text,
         isFollowup: next.is_followup,
+        questionNumber: next.question_number,
+        totalQuestions: next.total_questions,
       });
     } catch (err) {
       setError(err);
@@ -177,6 +183,27 @@ export function Interview() {
     <div className="page">
       <TopBar links={[{ to: "/history", label: "History" }]} />
       <h1 className="page-title">Interview</h1>
+
+      {question?.totalQuestions > 0 && (
+        <div className="interview-progress">
+          <div className="interview-progress-label muted">
+            Question {question.questionNumber} of {question.totalQuestions}
+            {question.isFollowup && " · follow-up"}
+          </div>
+          <div
+            className="interview-progress-track"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={question.totalQuestions}
+            aria-valuenow={question.questionNumber}
+          >
+            <div
+              className="interview-progress-fill"
+              style={{ width: `${(question.questionNumber / question.totalQuestions) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {question && (
         <div className="chat">
@@ -213,10 +240,6 @@ export function Interview() {
           )}
           {transcribing && <span className="muted">Transcribing…</span>}
         </div>
-
-        {!answer && !recording && !transcribing && (
-          <p className="muted">Record your answer — there's nothing to type here.</p>
-        )}
 
         {error &&
           (isServiceUnavailable(error) ? (
