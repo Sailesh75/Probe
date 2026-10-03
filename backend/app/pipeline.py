@@ -10,7 +10,7 @@ from uuid import UUID
 
 from app.db import repo
 from app.graph.graph import start_graph, turn_graph
-from app.graph.state import InterviewState, SessionProfile
+from app.graph.state import InterviewState, SessionProfile, is_behavioral
 from app.schemas import ProfileAnalysis
 
 
@@ -58,6 +58,7 @@ def start_session(
         "is_followup": False,
         "followup_count": 0,
         "questions_asked": 1,  # this first question counts against the session's budget
+        "behavioral_asked": 0,
         "user_answer": "",
         "eval_result": None,
         "has_next": True,
@@ -119,6 +120,9 @@ def submit_answer(
         "is_followup": question_row["is_followup"],
         "followup_count": _trailing_followup_count(all_questions),
         "questions_asked": sum(1 for q in all_questions if not q["is_followup"]),
+        "behavioral_asked": sum(
+            1 for q in all_questions if not q["is_followup"] and is_behavioral(q["target_area"])
+        ),
         "user_answer": answer_text,
         "eval_result": None,
         "has_next": False,
@@ -161,7 +165,8 @@ def submit_answer(
 
 
 def get_next_question(session_id: UUID, user_id: UUID) -> dict:
-    """The most recent question in the session, if it hasn't been answered yet.
+    """The most recent question in the session, if it hasn't been answered yet, plus its
+    1-based `question_number` among the session's fresh (non-followup) questions.
 
     Backs GET /sessions/{id}/next-question — also what lets the frontend resume a session
     after a page refresh, since the pending question now lives in Supabase, not router state.
@@ -178,7 +183,20 @@ def get_next_question(session_id: UUID, user_id: UUID) -> dict:
     if repo.get_answer_for_question(latest["id"]) is not None:
         raise ValueError("No pending question — the interview is complete")
 
-    return latest
+    # Follow-ups share their parent's number, so progress only advances on fresh questions.
+    question_number = sum(1 for q in all_questions if not q["is_followup"])
+    return {**latest, "question_number": question_number}
+
+
+def delete_session(session_id: UUID, user_id: UUID) -> None:
+    """Permanently removes a session (any status) and its questions, answers and summary."""
+    session_row = repo.get_session(session_id)
+    if session_row is None:
+        raise ValueError(f"No session {session_id} found")
+    if session_row["user_id"] != str(user_id):
+        raise PermissionError("This session does not belong to the current user")
+
+    repo.delete_session(session_id)
 
 
 def get_session_summary(session_id: UUID, user_id: UUID) -> dict:

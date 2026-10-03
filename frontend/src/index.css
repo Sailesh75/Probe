@@ -715,6 +715,31 @@ label.field-head {
   }
 }
 
+/* Interview progress */
+
+.interview-progress {
+  margin: -0.75rem 0 1.5rem;
+}
+
+.interview-progress-label {
+  font-size: 0.85rem;
+  margin-bottom: 0.4rem;
+}
+
+.interview-progress-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.interview-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+
 /* Interview chat */
 
 .chat {
@@ -902,6 +927,17 @@ label.field-head {
 
 .session-list a {
   color: var(--accent);
+}
+
+.session-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+}
+
+button.link.danger {
+  color: var(--error);
 }
 
 .status-badge {

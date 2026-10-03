@@ -54,6 +54,8 @@ export function NewSession() {
         state: {
           questionId: data.question_id,
           questionText: data.question_text,
+          questionNumber: data.question_number,
+          totalQuestions: data.total_questions,
         },
       });
     } catch (err) {
