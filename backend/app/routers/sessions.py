@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from app import pipeline
 from app.auth import get_current_user_id
+from app.graph.state import MAX_QUESTIONS_PER_SESSION
 from app.llm.gemini_client import GeminiUnavailableError
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,8 @@ class CreateSessionResponse(BaseModel):
     session_id: UUID
     question_id: UUID
     question_text: str
+    question_number: int
+    total_questions: int
 
 
 class SubmitAnswerRequest(BaseModel):
@@ -41,6 +44,12 @@ class NextQuestionResponse(BaseModel):
     question_id: UUID
     question_text: str
     is_followup: bool
+    question_number: int  # 1-based among fresh questions; follow-ups share their parent's
+    total_questions: int
+
+
+class DeleteSessionResponse(BaseModel):
+    deleted: bool
 
 
 class QuestionBreakdown(BaseModel):
@@ -99,6 +108,8 @@ def create_session(
         session_id=session_row["id"],
         question_id=question_row["id"],
         question_text=question_row["question_text"],
+        question_number=1,
+        total_questions=MAX_QUESTIONS_PER_SESSION,
     )
 
 
@@ -154,6 +165,8 @@ def next_question(
         question_id=question_row["id"],
         question_text=question_row["question_text"],
         is_followup=question_row["is_followup"],
+        question_number=question_row["question_number"],
+        total_questions=MAX_QUESTIONS_PER_SESSION,
     )
 
 
@@ -187,6 +200,25 @@ def get_summary(
             for q in data["questions"]
         ],
     )
+
+
+@router.delete("/{session_id}", response_model=DeleteSessionResponse)
+def delete_session(
+    session_id: UUID, user_id: UUID = Depends(get_current_user_id)
+) -> DeleteSessionResponse:
+    """Permanently deletes one of the current user's sessions — in progress or completed —
+    along with its questions, answers and summary."""
+    try:
+        pipeline.delete_session(session_id=session_id, user_id=user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except Exception as exc:  # DB failure or other bug
+        logger.exception("delete_session failed for session %s", session_id)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return DeleteSessionResponse(deleted=True)
 
 
 @router.get("", response_model=list[SessionListItem])
