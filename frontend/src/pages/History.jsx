@@ -75,11 +75,6 @@ export function History() {
       {trend && (
         <div className="card" style={{ marginBottom: "1.5rem" }}>
           <h3 style={{ margin: 0 }}>Score over time</h3>
-          <p className="muted" style={{ margin: "0.25rem 0 0", fontSize: "0.85rem" }}>
-            Based on your {trend.sessions.length} completed{" "}
-            {trend.sessions.length === 1 ? "interview" : "interviews"}. Each interview's score is
-            the average of its per-answer scores (1–5).
-          </p>
           <div className="stat-row">
             <div className="stat-tile">
               <div className="stat-value">{trend.avg_score !== null ? trend.avg_score.toFixed(1) : "—"}</div>
