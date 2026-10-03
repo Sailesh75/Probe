@@ -136,6 +136,20 @@ def update_session_status(session_id: UUID, status: str) -> None:
     get_supabase().table("sessions").update({"status": status}).eq("id", str(session_id)).execute()
 
 
+def delete_session(session_id: UUID) -> None:
+    """Deletes a session and everything hanging off it. The schema's foreign keys have no
+    ON DELETE CASCADE, so children go first: answers -> summary -> questions -> session.
+    All of a session's questions go in one statement, so follow-ups' parent_question_id
+    references never dangle mid-delete."""
+    db = get_supabase()
+    question_ids = [q["id"] for q in get_questions_for_session(session_id)]
+    if question_ids:
+        db.table("answers").delete().in_("question_id", question_ids).execute()
+    db.table("session_summaries").delete().eq("session_id", str(session_id)).execute()
+    db.table("questions").delete().eq("session_id", str(session_id)).execute()
+    db.table("sessions").delete().eq("id", str(session_id)).execute()
+
+
 def create_session_summary(
     session_id: UUID, overall_score: float, overall_feedback: str, patterns: list[dict]
 ) -> dict[str, Any]:

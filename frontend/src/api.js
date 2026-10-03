@@ -114,6 +114,11 @@ export function listSessions() {
   return authedFetch("/sessions");
 }
 
+// Permanently deletes a session (in progress or completed) and all its questions/answers.
+export function deleteSession({ sessionId }) {
+  return authedFetch(`/sessions/${sessionId}`, { method: "DELETE" });
+}
+
 // Score trend across the user's completed sessions.
 export function getTrends() {
   return authedFetch("/stats/trends");
